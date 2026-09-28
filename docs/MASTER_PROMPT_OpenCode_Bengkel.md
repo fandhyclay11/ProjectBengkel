@@ -64,36 +64,25 @@ Jangan menjalankan test atau pemeriksaan tambahan di luar permintaan task/proyek
 - Operasi inti tidak bergantung pada internet. Jika host mati, client LAN tidak dapat memakai aplikasi.
 - Rahasia melalui environment variables; error teknis rinci hanya di server log.
 
-## 6. Business rules yang tidak boleh dilanggar
+## 6. Cara menerapkan requirement bisnis
 
-Sebelum menulis logika bisnis, baca bagian terkait dalam `PRD_FINAL.md`. Ringkasan ini adalah pengingat, bukan pengganti PRD:
+Bagian ini adalah prosedur kerja, bukan daftar requirement tambahan. Untuk setiap perubahan:
 
-- Role V1 hanya `ADMIN` dan `USER`; semua USER memiliki permission standar yang sama.
-- Service dan SLS diblokir bila stok tidak cukup. Purchase boleh masuk saat stok negatif dan penerimaan menutup minus terlebih dahulu.
-- HPP menggunakan Average Cost saat transaksi dibuat/disetujui sesuai jenis transaksi, dan HPP transaksi disimpan agar histori tidak berubah diam-diam.
-- `stock_movements` adalah ledger immutable: jangan ubah/hapus movement lama melalui alur bisnis. Edit transaksi stok menghasilkan movement koreksi baru; cancel mempertahankan movement lama dan membuat reversal.
-- Confirm transaksi stok, Purchase, dan approval adjustment harus atomic. Idempotency/concurrency harus mencegah double movement dan race pada item sama.
-- SO menyimpan System Stock saat dibuat; setelah Finalize revisi masih boleh; setelah Approved final dan koreksi dilakukan melalui SO baru.
-- Semua CANCELED dikecualikan dari Dashboard dan P&L. Expense CANCELED juga tidak tampil di Expense History/laporan bisnis.
-- Service/SLS/Purchase mempertahankan nomor saat tanggal diedit. Aturan nomor Expense saat edit tanggal masih OPEN.
-- USER dapat melihat histori transaksi lintas user, tetapi tidak boleh melihat harga beli/jual, HPP/Average Cost, Inventory Value, Stock Movement History, Audit Log, Dashboard, atau Reports. Terapkan pada API, detail, print, dan export.
-- USER tidak boleh menambah/mengedit master sparepart. Sparepart yang pernah digunakan boleh dihapus, tetapi histori tetap menyimpan snapshot nama/kode; kode tidak pernah dipakai ulang.
-- Purchase Draft dan Expense hanya Admin. Expense tidak memiliki Draft; preview lalu simpan Completed.
-- Audit Log tidak dapat diedit, tetapi dapat dihapus Admin. Backup otomatis mingguan, retensi 30 hari, server yang sama, tanpa enkripsi wajib V1. Tidak ada inactivity timeout. Ini keputusan final yang berisiko; jangan diam-diam menggantinya.
-- Import Excel wajib Preview → Validation → Import; satu error membatalkan seluruh import. Jangan menebak mapping ambigu.
-
-Jika detail implementasi yang dibutuhkan tidak ditentukan PRD_FINAL, tandai `OPEN`; jangan mengarang dampak bisnis atau menyimpulkan aturan dari PRD lama.
-
+- Baca bagian terkait di `PRD_FINAL.md`; itulah satu-satunya sumber aturan produk V1. Jangan memakai ringkasan di prompt ini untuk mengganti atau memperluas PRD.
+- Periksa permission di server pada setiap aksi dan bentuk data yang dikirim ke tiap role. Menyembunyikan tombol tidak cukup.
+- Untuk perubahan stok, gunakan Stock Service dan ledger movement sesuai PRD. Jangan membuat jalur tulis saldo langsung.
+- Simpan perubahan transaksi, status, stok, costing, idempotency, dan audit sesuai batas transaksi yang diwajibkan PRD; jaga movement historis tetap utuh.
+- Jika aturan tidak jelas atau bertentangan, tandai `OPEN` dan jangan memilih hasil bisnis sendiri.
 ## 7. Data, database, concurrency, dan ledger
 
 - Gunakan PostgreSQL dan migration terversi sesuai keputusan Planning. Jaga foreign key dan status workflow yang terkontrol.
-- Gunakan numeric/decimal untuk uang; jangan gunakan floating point. Presisi quantity inventory, rounding Average Cost, dan presisi internal HPP mengikuti keputusan Planning yang direview.
+- Ikuti ketentuan angka di `PRD_FINAL.md`: ID BIGINT auto-increment, quantity stok integer pcs, uang integer Rupiah, dan pembulatan setiap langkah hitung sebelum lanjut. Detail representasi teknis harus mempertahankan hasil yang terkunci.
 - Validasi input di server (termasuk quantity, uang, tanggal, foreign key, status, stok, autentikasi dan role). Client validation hanya untuk UX.
 - Jangan melakukan read-modify-write saldo tanpa transaction/locking yang sesuai.
 - Satu operasi transaksi bisnis dan movement terkait berhasil seluruhnya atau rollback seluruhnya.
-- Retry/double submit tidak boleh menciptakan movement ganda. Tentukan idempotency dan penanganan konkurensi dalam Planning.
+- Retry/double submit tidak boleh menciptakan movement ganda. Untuk permintaan berulang, ikuti PRD: key unik per actor dan operasi; key serta data sama mengembalikan hasil pertama; data berbeda ditolak; catatan disimpan permanen. Rincian cara menyimpan key/hasil adalah detail teknis Planning.
 - Jangan hard-delete transaksi final sebagai mekanisme edit/cancel. Terapkan snapshot historis sparepart dan user sesuai PRD.
-- Field schema, struktur folder, endpoint, ID, indeks, atau cache stok bukan keputusan otomatis; rancang dan dokumentasikan pada Planning.
+- ID BIGINT auto-increment adalah keputusan terkunci; field schema lain, struktur folder, endpoint, indeks, atau cache stok bukan keputusan otomatis dan tetap dirancang di Planning.
 
 ## 8. Access control, audit, dan security
 
@@ -120,7 +109,7 @@ Jika detail implementasi yang dibutuhkan tidak ditentukan PRD_FINAL, tandai `OPE
 - Kecualikan CANCELED dari seluruh KPI/grafik Dashboard dan P&L.
 - Menu Reports Admin saja; USER tetap boleh mencetak dokumen transaksi yang diizinkan tanpa kolom sensitif.
 - Report export/print/API juga harus menegakkan authorization serta penyamaran kolom, bukan hanya tampilan web.
-- Jangan mengarang formula comparison, rounding, date boundaries, threshold stok minimum, atau definisi OPEN lainnya.
+- Ikuti threshold stok minimum, pembulatan setiap langkah, dan aturan grafik yang terkunci di `PRD_FINAL.md`. Untuk detail perbandingan periode atau batas hari yang masih OPEN, jangan mengarang hasil bisnis.
 
 ## 11. Excel, backup, restore, dan deployment
 
@@ -128,7 +117,7 @@ Jika detail implementasi yang dibutuhkan tidak ditentukan PRD_FINAL, tandai `OPE
 
 - Perlakukan Excel sebagai sumber migrasi/referensi, bukan runtime DB, blueprint schema, opening stock otomatis, atau transaksi historis aktif.
 - Import hanya Admin dan wajib Preview → Validation → Import. Jika error, rollback seluruh import. Tampilkan laporan hasil dan verifikasi jumlah/detail/total.
-- Nama persis dipetakan; nama mirip minta konfirmasi; item baru dikonfirmasi Admin; mapping ambigu ditentukan Admin, tidak ditebak.
+- V1 hanya mengimpor master sparepart dari `.xlsx`. Perbandingan nama mengabaikan huruf besar-kecil dan spasi awal/akhir; nama mirip minta konfirmasi Admin; mapping ambigu ditentukan Admin, tidak ditebak. Batas file/baris mengikuti hasil pemeriksaan contoh file bengkel.
 - Kode dan harga beli/jual dari Excel tidak mengubah aturan/master; formula diabaikan.
 
 ### Backup/restore
@@ -141,7 +130,7 @@ Jika detail implementasi yang dibutuhkan tidak ditentukan PRD_FINAL, tandai `OPE
 
 - Rencanakan host, OS, firewall/private LAN, bind interface, cara menjalankan, database lokal, restart, migration, dan akses client.
 - HTTPS digunakan ketika tersedia/didukung. Jangan menambahkan cloud/remote internet access ke V1.
-- Docker Compose adalah opsi teknis, bukan keharusan; tetapkan pada Planning.
+- Production V1 menggunakan native Windows; aplikasi dan PostgreSQL berjalan langsung pada Windows. Admin menjalankan aplikasi sendiri saat akan dipakai; aplikasi tidak otomatis berjalan. Docker bukan requirement production. Network bind, firewall, LAN addressing dan HTTPS tetap perlu dirinci di Planning.
 
 ## 12. Testing dan Definition of Done
 
@@ -169,7 +158,7 @@ Affected docs/tasks:
 
 Bedakan antara **business decision** yang memerlukan keputusan user dan **technical design** yang bisa direkomendasikan melalui Planning/ADR. Jangan menjadikan rekomendasi teknis sebagai business rule tanpa review.
 
-Topik yang diketahui masih OPEN antara lain: deployment/OS/HTTPS LAN; presisi quantity, rounding dan presisi HPP; saldo negatif costing; detail edit Purchase satu kali; batas edit Service/SLS oleh Admin; nomor Expense setelah edit tanggal; zona waktu/report boundaries; revisi SO terhadap movement baru; soft/hard delete dan snapshot sparepart; jejak penghapusan Audit Log; akses record Expense CANCELED; PostgreSQL restore eksternal; spesifikasi template/ukuran Excel; session teknis tanpa inactivity timeout; threshold stok minimum dan perhitungan comparison.
+Gunakan daftar OPEN terbaru pada `PRD_FINAL.md` sebagai satu-satunya daftar requirement yang belum diputuskan. Topik dan status OPEN dapat berubah; daftar ini tidak menetapkan atau menambahkan business requirement.
 
 ## 14. Change control
 
