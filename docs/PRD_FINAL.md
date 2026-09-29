@@ -87,9 +87,9 @@ CRM pelanggan, booking, loyalty, marketplace, payment gateway, aplikasi native A
 - Purchase Completed menambah stok dan menghitung ulang Average Cost dari posisi stok/nilai yang berlaku serta harga beli aktual per item. Stok inventori tidak boleh negatif; Purchase tidak dapat menggunakan receipt untuk menutup saldo negatif. Service/SLS ditolak jika stok tidak cukup, dan edit transaksi juga tidak boleh menghasilkan stok negatif. Selisih Stock Opname yang negatif tetap valid dan berbeda dari saldo stok negatif.
 - Tanggal boleh hari ini/lampau dan tidak boleh mendatang. Nomor otomatis tetap jika tanggal diubah.
 - ADMIN boleh mengedit Purchase Completed satu kali; USER tidak boleh mengeditnya. Perubahan supplier saja tidak memerlukan alasan; setiap perubahan Completed Purchase lainnya wajib mencatat alasan. Semua edit menampilkan ringkasan Before → After dan diaudit. Edit jumlah/harga menghitung ulang costing, tetapi movement lama immutable dan koreksi stok dicatat dengan movement baru.
-- Batas satu kali mencakup semua edit, termasuk perubahan supplier saja. Dalam satu edit, Admin boleh menambah, menghapus, atau mengubah item. Edit ditolak jika ada transaksi atau stock event berikutnya yang bergantung pada Purchase tersebut. Movement lama immutable; koreksi kuantitas stok dilakukan dengan movement delta baru. Average Cost diperbarui; HPP transaksi lama tidak berubah. Purchase yang sudah diedit tetap dapat dibatalkan sesuai alur pembatalan.
+- Batas satu kali mencakup semua edit, termasuk perubahan supplier saja. Dalam satu edit, Admin boleh menambah, menghapus, atau mengubah item. Untuk perubahan item atau pembatalan, setiap pengeluaran stok pada sparepart terkait yang terjadi setelah Purchase dikonfirmasi berarti Purchase dianggap sudah digunakan; perubahan item dan pembatalan ditolak walaupun stok kemudian masuk lagi. Perubahan supplier saja tetap boleh dilakukan sekali karena tidak mengubah stok. Movement lama immutable; koreksi kuantitas stok dilakukan dengan movement delta baru. Average Cost diperbarui; HPP transaksi lama tidak berubah. Purchase yang sudah diedit tetap dapat dibatalkan sesuai alur pembatalan jika belum digunakan menurut aturan ini.
 - Nama supplier ditulis langsung pada Purchase sebagai teks; V1 tidak memakai master supplier tersendiri.
-- Cancel mempertahankan transaksi `CANCELED`, membuat reversal movement, dan menghitung ulang Average Cost. Pembatalan ditolak jika stok dari Purchase tersebut sudah dipakai transaksi lain.
+- Cancel mempertahankan transaksi `CANCELED`, membuat reversal movement, dan menghitung ulang Average Cost. Pembatalan ditolak jika ada pengeluaran stok pada sparepart terkait setelah Purchase dikonfirmasi, walaupun stok kemudian masuk lagi.
 - USER boleh mencetak dokumen Purchase yang boleh diaksesnya, tanpa melihat harga beli.
 
 ### 4.4 Operational Expense
@@ -323,7 +323,7 @@ Daftar ini membedakan keputusan yang telah dipilih Admin dari rincian yang masih
 - **O-13:** Excel memakai `.xlsx`; batas ukuran dan jumlah baris ditetapkan setelah contoh file bengkel diperiksa.
 - **O-15:** Grafik makin ringkas untuk rentang makin panjang dan tidak membandingkan dengan periode lain. Stok Menipis tetap `current stock <= minimum stock`.
 - **O-16:** Edit Service/SLS memeriksa stok terkini; tambahan pemakaian diterima hanya jika stok cukup.
-- **O-17:** Pembatalan Purchase ditolak jika stok Purchase itu sudah dipakai transaksi lain.
+- **O-17:** Untuk edit item atau pembatalan, setiap pengeluaran stok pada sparepart terkait setelah Purchase dikonfirmasi membuat Purchase dianggap sudah digunakan; operasi ditolak walaupun stok kemudian masuk lagi. Supplier-only edit tetap boleh dilakukan sekali karena tidak mengubah stok.
 - **O-19:** USER boleh melihat dan mengubah harga jual transaksi. Warning boleh terlihat tanpa menunjukkan harga beli.
 - **O-22:** Jika stok berubah sejak SO dimulai sebelum persetujuan, USER harus menghitung ulang sebelum Admin menyetujui.
 - **O-23:** Import Excel tahap awal hanya memasukkan master sparepart. Riwayat transaksi dan stok Excel tetap hanya referensi.
@@ -349,7 +349,6 @@ Keputusan terkunci sebelumnya tetap berlaku: O-03 stok tidak boleh negatif; O-06
 - **O-14 (teknis):** penyimpanan sesi, CSRF, invalidasi saat user dinonaktifkan/reset/restore, dan cara membuat Admin pertama; tidak ada batas waktu tidak aktif.
 - **O-15 (teknis):** batas rentang pendek/panjang dan pembulatan angka agregat grafik; perbandingan periode tidak digunakan.
 - **O-16 (teknis):** cara mengukur dan menerapkan delta stok edit secara aman pada waktu edit.
-- **O-17 (teknis):** cara memastikan keterkaitan stok Purchase dengan transaksi yang sudah menggunakan stok tersebut; aturan bisnis penolakan pembatalan sudah LOCKED.
 - **O-19 (teknis):** bentuk data harga jual yang dikirim ke USER tanpa membocorkan harga jual master, harga beli, atau HPP; izin melihat/mengubah harga transaksi dan kemungkinan warning untuk USER sudah LOCKED.
 - **O-20:** waktu alokasi nomor Service/SLS dan pencegahan nomor ganda pada penyimpanan bersamaan; preview tetap tidak membuat transaksi, Draft, atau movement.
 - **O-22 (teknis):** cara mendeteksi perubahan stok sejak SO dimulai dan memaksa hitung ulang sebelum persetujuan; perilaku hitung ulang sudah LOCKED.

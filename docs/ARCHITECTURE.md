@@ -1,12 +1,12 @@
 # Architecture Planning — ProjectBengkel V1
 
-Status: Draft for review. Requirement source: `PRD_FINAL.md`. This document describes design boundaries; it does not authorize implementation or resolve business OPEN decisions.
+Status: Approved planning baseline with Foundation and Phase 2 implementation in progress. `PRD_FINAL.md` remains the sole requirement source. This document describes design boundaries and does not resolve business OPEN decisions.
 
 ## Goals and boundaries
 
 - Local-First: application and PostgreSQL run on a designated host; core workflows work without internet.
 - LAN-Ready: browser clients on the private LAN use the host application and the same database. Clients never connect directly to PostgreSQL.
-- Production V1 runs natively on Windows with PostgreSQL and the application; Admin starts the application manually when needed, and it does not auto-start. Docker is not required. Network bind, firewall, LAN addressing and HTTPS still need technical planning. One modular backend. Candidate stack remains Next.js/React/TypeScript, PostgreSQL, Prisma, Zod and session-based local auth, subject to repository/host verification and review. No second backend, microservices, queue or cloud dependency is planned.
+- Production V1 runs natively on Windows with PostgreSQL and the application; Admin starts the application manually when needed, and it does not auto-start. Docker is not required. The local implementation uses one modular Next.js/React/TypeScript backend with PostgreSQL, Prisma, Zod and session-based local authentication. Network bind, firewall, LAN addressing and HTTPS remain deployment details. No second backend, microservices, queue or cloud dependency is planned.
 - Out of scope: internet/remote access, multi-device offline synchronization, native mobile apps, payment gateway and other PRD exclusions.
 
 ## Request and domain flow

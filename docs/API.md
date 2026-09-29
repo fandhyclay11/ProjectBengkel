@@ -1,6 +1,6 @@
 # API Planning — ProjectBengkel V1
 
-Status: conceptual API contract; no endpoint implementation or final URL/DTO commitment. All requirements derive from `PRD_FINAL.md`. Prefer a single modular web/API backend; endpoint naming can be finalized during implementation planning.
+Status: API contract updated with Phase 2 implementation. Existing route paths below are implemented examples for Spareparts, stock opening/movements, and Purchase; later modules remain conceptual. All business requirements continue to derive from `PRD_FINAL.md`.
 
 ## API principles
 
@@ -18,9 +18,12 @@ Status: conceptual API contract; no endpoint implementation or final URL/DTO com
 | Auth | session/login, logout, password change; Admin reset user password | public login; session-required thereafter; Admin reset |
 | Users | list/create/update/deactivate; reset credential | Admin; self change via Auth |
 | Spareparts | list/current stock, detail; Admin create/edit/activate/deactivate/delete | permitted list for USER with safe projection; mutations Admin |
+| Stock | `POST /api/admin/stock/opening`; `GET /api/admin/stock/movements?sparePartId=…` | Admin only; server-side authorization |
 | Services | list/detail/preview/final-save; Admin edit/cancel completed | authenticated; create Admin/User; edit/cancel Admin only |
 | SLS | list/detail/preview/final-save; Admin edit/cancel | authenticated; create Admin/User; edit/cancel Admin only |
 | Purchases | Admin draft CRUD, confirm, completed edit once/cancel; permitted print | Admin commands; print role-filtered |
+
+Purchase Draft commands use `/api/admin/purchases`, `/api/admin/purchases/[id]`, and `/api/admin/purchases/[id]/confirm`. Completed edit uses `PATCH /api/admin/purchases/[id]`; cancellation uses `POST /api/admin/purchases/[id]/cancel`. Item edit/cancel reject when a negative movement for any affected sparepart followed the Purchase Confirm, even if later stock receipts restored the balance. Supplier-only edit is exempt from this stock gate. Read queries use `/api/purchases` and `/api/purchases/[id]`; USER DTOs omit buy price and totals and do not expose Drafts. Sparepart routes are `/api/spareparts` and `/api/spareparts/[id]` with role-safe projections.
 | Expenses | preview/create Completed, edit, cancel; separate query for canceled records | Admin only; canceled Expense omitted from ordinary history/reports |
 | Stock Opname | create, revise/recheck, finalize, approve, reject, result query | create/revise authenticated; final/reject/approve Admin |
 | Movements | Admin query/filter by part | Admin only |
@@ -50,7 +53,7 @@ Admin-only operations include user/master management, Purchase Draft/management,
 ## Validation and state transitions
 
 - Validate on server: types, required fields, transaction datetime not future (stored by computer time standard and displayed/reported by workshop timezone), integer Rupiah values, Purchase/opening unit costs greater than Rp0, positive integer-pcs sparepart quantities, positive decimal Expense quantities, each Expense line after rounding greater than Rp0, line/transaction totals, discount constraints, foreign keys, allowed statuses, nonnegative resulting inventory, workflow permissions and part active/deleted policy. Round each calculation step before continuing.
-- Service/SLS Completed edits are Admin-only and allowed at most once per transaction; require a reason and Before→After summary in the audit result. All creator-entered fields may be edited except transaction number and old stock note. Check current stock before accepting added usage. Purchase Completed edit is Admin-only and allowed at most once total, including supplier-only edits; reject it if a subsequent transaction/stock event depends on it. One edit may add/remove/change items, updates Average Cost, and keeps old HPP unchanged. Supplier is free text; supplier-only change needs no reason, while any other edit requires a reason and a Before→After summary. Reject Purchase cancellation if its stock was already used by another transaction.
+- Service/SLS Completed edits are Admin-only and allowed at most once per transaction; require a reason and Before→After summary in the audit result. All creator-entered fields may be edited except transaction number and old stock note. Check current stock before accepting added usage. Purchase Completed edit is Admin-only and allowed at most once total, including supplier-only edits. For item edits/cancellation, reject when any stock decrease for an affected part occurred after Purchase Confirm, even if later receipts restored the balance; supplier-only edit remains allowed once after stock use. One edit may add/remove/change items, updates Average Cost, and keeps old HPP unchanged. Supplier is free text; supplier-only change needs no reason, while any other edit requires a reason and a Before→After summary. Post immutable correction/reversal movements for accepted changes; preserve actual Purchase value separately from rounded inventory valuation change.
 - Recalculate HPP and related transaction values server-side after an accepted Service/SLS edit; never accept client-submitted recalculated totals or HPP as authoritative. Transaction date/time is one datetime under a configurable workshop timezone, and generated business numbers stay unchanged after date/time edits.
 - Sparepart master validation rejects a duplicate name after ignoring case and leading/trailing spaces. Similar-name warning and explicit Admin continuation are required; similarity matching is technical OPEN. Service/SLS line selling price defaults from master but may be edited by USER; below latest buy price is allowed with a warning, and do not reveal buy price.
 - Purchase Draft and confirm commands require at least one item; reject duplicate sparepart IDs within one Purchase.
@@ -73,7 +76,7 @@ Excel migration endpoints import sparepart master only. Historical Service/SLS/P
 
 No USER response, warning, error, print or export may reveal the numeric Latest Buy Price or master buy/sell prices or HPP. USER may see and edit transaction selling price; a below-buy-price warning may be shown without the buy price.
 
-All retryable mutations use an idempotency key unique to the actor and operation, including create/edit/cancel/confirm/approve/import/restore. Same key and same request data returns the original outcome; same key with different data is rejected as a conflict. Keep idempotency records permanently. Lock/serialize stock/cost rows and recheck invariants in transaction. Never implement stock movement as a later asynchronous side effect.
+All retryable mutations use the `Idempotency-Key` request header, unique to the actor and operation, including create/edit/cancel/confirm/approve/import/restore. The I2.1 implementation stores a SHA-256 fingerprint of canonical request data and the JSON outcome in a permanent `idempotency_records` row in the same transaction as the mutation and audit event. Same key/data returns the original outcome; same key with changed data is rejected as a conflict. Lock/serialize stock/cost rows and recheck invariants in transaction. Never implement stock movement as a later asynchronous side effect.
 
 ## Error handling
 
