@@ -7,7 +7,7 @@ const env = {
 };
 const result = spawnSync(
   process.execPath,
-  ["./node_modules/tsx/dist/cli.mjs", "--test", "src/server/database.integration.test.ts", "src/server/sparepart-service.test.ts", "src/server/stock-service.test.ts", "src/server/purchase-service.test.ts", "src/server/stock-card-http.integration.test.ts"],
+  ["./node_modules/tsx/dist/cli.mjs", "--test", "src/server/database.integration.test.ts", "src/server/sparepart-service.test.ts", "src/server/stock-service.test.ts", "src/server/purchase-service.test.ts", "src/server/stock-card-http.integration.test.ts", "src/server/service-service.test.ts", "src/server/service-http.integration.test.ts"],
   { env, stdio: "inherit" },
 );
 

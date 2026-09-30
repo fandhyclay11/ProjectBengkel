@@ -1,0 +1,76 @@
+"use client";
+
+import { useRef, useState } from "react";
+
+type Part = { id: string; code: string; name: string; sellingPrice?: string; currentStock: string };
+type Job = { description: string; amount: string };
+type Item = { sparePartId: string; quantity: string; sellingPrice: string };
+type Service = { id: string; serviceNumber: string; transactionDisplay: string; vehicleDescription: string | null; status: string; jobs: Array<{ description: string; amount: string }>; items: Array<{ code: string; name: string; quantity: string; sellingPrice: string; lineAmount: string; unitHppSnapshot?: string; lineHpp?: string }>; subtotal: string; discount: string; totalAmount: string; totalHpp?: string };
+
+const money = (value: string) => `Rp${BigInt(value).toLocaleString("id-ID")}`;
+function csrfToken() { return document.cookie.split(";").map((item) => item.trim()).find((item) => item.startsWith("pb_csrf="))?.slice(8) ?? ""; }
+
+async function send(url: string, body: unknown, key?: string) {
+  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrfToken(), ...(key ? { "idempotency-key": key } : {}) }, body: JSON.stringify(body) });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error ?? "Permintaan gagal.");
+  return result;
+}
+
+export function ServicesClient({ role, initialServices, spareparts, defaultDateTime }: { role: "ADMIN" | "USER"; initialServices: Service[]; spareparts: Part[]; defaultDateTime: string }) {
+  const [services, setServices] = useState(initialServices);
+  const [transactionAt, setTransactionAt] = useState(defaultDateTime);
+  const [vehicle, setVehicle] = useState("");
+  const [discount, setDiscount] = useState("0");
+  const [jobs, setJobs] = useState<Job[]>([{ description: "", amount: "" }]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const saveKey = useRef<string | null>(null);
+
+  const payload = () => ({ transactionAt, vehicleDescription: vehicle || undefined, discount, jobs, items: items.map((item) => ({ ...item, sellingPrice: item.sellingPrice || undefined })) });
+  const runPreview = async () => {
+    setSaving(true);
+    try { setPreview((await send("/api/services/preview", payload())).preview); setMessage("Preview berhasil. Belum ada transaksi atau perubahan stok."); }
+    catch (error) { setMessage((error as Error).message); }
+    finally { setSaving(false); }
+  };
+  const save = async () => {
+    saveKey.current ??= crypto.randomUUID();
+    setSaving(true);
+    try {
+      const result = await send("/api/services", payload(), saveKey.current);
+      setMessage(`Service ${result.service.serviceNumber} berhasil disimpan.`);
+      saveKey.current = null; setPreview(null); setJobs([{ description: "", amount: "" }]); setItems([]); setDiscount("0"); setVehicle("");
+      const response = await fetch("/api/services", { cache: "no-store" });
+      if (response.ok) setServices((await response.json()).services);
+    } catch (error) { setMessage((error as Error).message); }
+    finally { setSaving(false); }
+  };
+  const addItem = () => setItems((old) => [...old, { sparePartId: spareparts.find((part) => !old.some((item) => item.sparePartId === part.id))?.id ?? "", quantity: "1", sellingPrice: "" }]);
+
+  return <main className="mx-auto max-w-6xl p-6">
+    <a href="/beranda" className="text-sm text-blue-700">← Beranda</a>
+    <h1 className="mt-3 text-2xl font-semibold">Service</h1>
+    <p className="mt-2 text-sm text-slate-600">Preview tidak menyimpan data. Service menjadi Completed dan mengurangi stok setelah disimpan.</p>
+    {message && <p role="status" className="my-3 rounded bg-slate-100 p-3">{message}</p>}
+    <section className="my-5 rounded border bg-white p-4">
+      <h2 className="font-semibold">Buat Service</h2>
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <label className="grid gap-1 text-sm">Tanggal dan waktu<input className="rounded border px-3 py-2" type="datetime-local" value={transactionAt} onChange={(event) => setTransactionAt(event.target.value)} /></label>
+        <label className="grid gap-1 text-sm">Kendaraan (opsional)<input className="rounded border px-3 py-2" value={vehicle} onChange={(event) => setVehicle(event.target.value)} /></label>
+        <label className="grid gap-1 text-sm">Discount (Rp)<input className="rounded border px-3 py-2" inputMode="numeric" value={discount} onChange={(event) => setDiscount(event.target.value)} /></label>
+      </div>
+      <h3 className="mt-5 font-medium">Pekerjaan/Jasa</h3>
+      <div className="mt-2 space-y-2">{jobs.map((job, index) => <div key={index} className="grid gap-2 md:grid-cols-[2fr_1fr_auto]"><input className="rounded border px-3 py-2" placeholder="Deskripsi pekerjaan" value={job.description} onChange={(event) => setJobs((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, description: event.target.value } : row))} /><input className="rounded border px-3 py-2" placeholder="Harga jasa (Rp)" inputMode="numeric" value={job.amount} onChange={(event) => setJobs((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, amount: event.target.value } : row))} /><button className="rounded border px-3 py-2" disabled={jobs.length <= 1} onClick={() => setJobs((old) => old.filter((_, rowIndex) => rowIndex !== index))}>Hapus</button></div>)}</div>
+      <button className="mt-2 rounded border px-3 py-2" onClick={() => setJobs((old) => [...old, { description: "", amount: "" }])}>Tambah pekerjaan</button>
+      <h3 className="mt-5 font-medium">Sparepart (opsional)</h3>
+      <div className="mt-2 space-y-2">{items.map((item, index) => <div key={index} className="grid gap-2 rounded border p-3 md:grid-cols-[2fr_1fr_1fr_auto]"><select className="rounded border px-2 py-2" value={item.sparePartId} onChange={(event) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, sparePartId: event.target.value } : row))}><option value="">Pilih sparepart</option>{spareparts.filter((part) => !items.some((other, otherIndex) => otherIndex !== index && other.sparePartId === part.id)).map((part) => <option key={part.id} value={part.id}>{part.code} — {part.name}</option>)}</select><input className="rounded border px-2 py-2" inputMode="numeric" placeholder="Jumlah pcs" value={item.quantity} onChange={(event) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: event.target.value } : row))} /><input className="rounded border px-2 py-2" inputMode="numeric" placeholder="Harga jual transaksi (Rp)" value={item.sellingPrice} onChange={(event) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, sellingPrice: event.target.value } : row))} /><button className="rounded border px-3 py-2" onClick={() => setItems((old) => old.filter((_, rowIndex) => rowIndex !== index))}>Hapus</button></div>)}</div>
+      <button className="mt-2 rounded border px-3 py-2" onClick={addItem} disabled={items.length >= spareparts.length}>Tambah sparepart</button>
+      <div className="mt-5 flex flex-wrap gap-2"><button disabled={saving} className="rounded border px-4 py-2" onClick={() => void runPreview()}>Preview</button>{preview && <button disabled={saving} className="rounded bg-blue-700 px-4 py-2 text-white" onClick={() => void save()}>Simpan Service</button>}</div>
+      {preview && <div className="mt-4 rounded bg-slate-50 p-4"><h3 className="font-medium">Hasil Preview</h3><p>Subtotal: {money(String(preview.subtotal))}</p><p>Discount: {money(String(preview.discount))}</p><p>Total: {money(String(preview.totalAmount))}</p>{role === "ADMIN" && preview.totalHpp !== undefined && <p>HPP: {money(String(preview.totalHpp))}</p>}</div>}
+    </section>
+    <section className="space-y-3"><h2 className="text-xl font-semibold">Riwayat Service</h2>{services.map((service) => <article key={service.id} className="rounded border bg-white p-4"><div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-semibold">{service.serviceNumber} · {service.status}</h3><p className="text-sm text-slate-600">{service.transactionDisplay}{service.vehicleDescription ? ` · ${service.vehicleDescription}` : ""}</p></div><strong>{money(service.totalAmount)}</strong></div><ul className="mt-3 text-sm">{service.jobs.map((job, index) => <li key={index}>{job.description} — {money(job.amount)}</li>)}{service.items.map((item) => <li key={`${service.id}-${item.code}`}>{item.code} — {item.name} × {item.quantity} — {money(item.sellingPrice)}</li>)}</ul>{role === "ADMIN" && service.totalHpp !== undefined && <p className="mt-2 text-sm">HPP: {money(service.totalHpp)}</p>}</article>)}{!services.length && <p className="rounded border bg-white p-4 text-slate-600">Belum ada Service.</p>}</section>
+  </main>;
+}

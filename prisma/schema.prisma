@@ -29,6 +29,11 @@ enum PurchaseStatus {
   CANCELED
 }
 
+enum ServiceStatus {
+  COMPLETED
+  CANCELED
+}
+
 model User {
   id                   BigInt       @id @default(autoincrement())
   username             String       @unique @db.VarChar(80)
@@ -45,6 +50,7 @@ model User {
   idempotencyRecords   IdempotencyRecord[]
   stockMovements       StockMovement[]
   createdPurchases     Purchase[]
+  createdServices      Service[] @relation("ServiceCreator")
 
   @@map("users")
 }
@@ -112,6 +118,7 @@ model SparePart {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   movements      StockMovement[]
   purchaseItems  PurchaseItem[]
+  serviceItems   ServiceItem[]
 
   @@index([isActive, deletedAt, name])
   @@map("spare_parts")
@@ -202,4 +209,60 @@ model DocumentNumberCounter {
 
   @@id([series, businessDate])
   @@map("document_number_counters")
+}
+
+model Service {
+  id                BigInt        @id @default(autoincrement())
+  serviceNumber     String        @unique @map("service_number") @db.VarChar(40)
+  transactionAt     DateTime      @map("transaction_at") @db.Timestamptz(3)
+  vehicleDescription String?      @map("vehicle_description") @db.VarChar(200)
+  status            ServiceStatus @default(COMPLETED)
+  createdById       BigInt        @map("created_by_id")
+  subtotal          BigInt        @default(0)
+  discount          BigInt        @default(0)
+  totalAmount       BigInt        @default(0) @map("total_amount")
+  totalHpp          BigInt        @default(0) @map("total_hpp")
+  editCount         Int           @default(0) @map("edit_count")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy         User          @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  jobs              ServiceJobDetail[]
+  items             ServiceItem[]
+
+  @@index([status, transactionAt])
+  @@index([createdById, transactionAt])
+  @@map("services")
+}
+
+model ServiceJobDetail {
+  id          BigInt  @id @default(autoincrement())
+  serviceId   BigInt  @map("service_id")
+  lineNumber  Int     @map("line_number")
+  description String  @db.VarChar(300)
+  amount      BigInt
+  service     Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([serviceId, lineNumber])
+  @@map("service_job_details")
+}
+
+model ServiceItem {
+  id                BigInt    @id @default(autoincrement())
+  serviceId         BigInt    @map("service_id")
+  sparePartId       BigInt    @map("spare_part_id")
+  lineNumber        Int       @map("line_number")
+  partCodeSnapshot  String    @map("part_code_snapshot") @db.VarChar(32)
+  partNameSnapshot  String    @map("part_name_snapshot") @db.VarChar(150)
+  quantity          BigInt
+  sellingPrice      BigInt    @map("selling_price")
+  lineAmount        BigInt    @map("line_amount")
+  unitHppSnapshot   BigInt    @map("unit_hpp_snapshot")
+  lineHpp           BigInt    @map("line_hpp")
+  service           Service   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  sparePart         SparePart @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+
+  @@unique([serviceId, sparePartId])
+  @@unique([serviceId, lineNumber])
+  @@index([sparePartId, serviceId])
+  @@map("service_items")
 }
