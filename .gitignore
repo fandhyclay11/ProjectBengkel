@@ -10,3 +10,4 @@ src/generated/prisma/
 !.env.example
 backups/
 npm-debug.log*
+opencode.json
