@@ -33,6 +33,7 @@ test("stock service posts an immutable ledger and keeps its balance projection a
         });
         assert.equal(opening.currentStock, 1n);
         assert.equal(opening.averageCost, 1200n, "opening unit cost initializes Average Cost");
+        assert.equal((await tx.sparePart.findUniqueOrThrow({ where: { id: part.id } })).stockVersion, 1n);
 
         const receipt = await applyStockMovement(tx, {
           sparePartId: part.id, movementType: "PURCHASE_RECEIPT", quantity: 1n, unitCost: 1401n,
@@ -40,6 +41,7 @@ test("stock service posts an immutable ledger and keeps its balance projection a
         });
         assert.equal(receipt.currentStock, 2n);
         assert.equal(receipt.averageCost, 1301n, "weighted Average Cost rounds half up to a whole Rupiah");
+        assert.equal((await tx.sparePart.findUniqueOrThrow({ where: { id: part.id } })).stockVersion, 2n);
 
         const issue = await applyStockMovement(tx, {
           sparePartId: part.id, movementType: "SERVICE_ISSUE", quantity: -1n,
@@ -48,6 +50,7 @@ test("stock service posts an immutable ledger and keeps its balance projection a
         assert.equal(issue.currentStock, 1n);
         assert.equal(issue.unitCost, 1301n);
         assert.equal(issue.averageCost, 1301n, "stock issue records current cost without changing Average Cost");
+        assert.equal((await tx.sparePart.findUniqueOrThrow({ where: { id: part.id } })).stockVersion, 3n);
 
         await assert.rejects(
           applyStockMovement(tx, {
@@ -63,6 +66,7 @@ test("stock service posts an immutable ledger and keeps its balance projection a
         assert.equal(movements.reduce((total, movement) => total + movement.quantity, 0n), current.stockOnHand,
           "ledger quantity reconciles with current-stock projection");
         assert.equal(movements.length, 3, "insufficient stock creates no movement");
+        assert.equal(current.stockVersion, 3n, "insufficient stock creates no version increment");
         const cardRows = await listMovementsForAdmin(part.id, 20, tx);
         assert.equal(cardRows.length, 3, "Admin stock-card query returns movements for the selected part");
         assert.equal(cardRows[0]?.code, part.code);

@@ -37,7 +37,8 @@
     ".next-http-test-ca05d8b25a83c050/types/**/*.ts",
     ".next-http-test-ca05d8b25a83c050/dev/types/**/*.ts",
     ".next-http-test-d8cceeeae656807b/types/**/*.ts",
-    ".next-http-test-d8cceeeae656807b/dev/types/**/*.ts"
+    ".next-http-test-d8cceeeae656807b/dev/types/**/*.ts",
+    ".next/dev/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

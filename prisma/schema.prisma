@@ -44,6 +44,12 @@ enum ExpenseStatus {
   CANCELED
 }
 
+enum StockOpnameStatus {
+  REVISION
+  FINALIZED
+  APPROVED
+}
+
 model User {
   id                   BigInt       @id @default(autoincrement())
   username             String       @unique @db.VarChar(80)
@@ -65,6 +71,8 @@ model User {
   serviceRevisions     ServiceRevision[]
   slsRevisions         SlsRevision[]
   createdExpenses      Expense[] @relation("ExpenseCreator")
+  createdStockOpnames  StockOpname[] @relation("StockOpnameCreator")
+  finalizedStockOpnames StockOpname[] @relation("StockOpnameFinalizer")
 
   @@map("users")
 }
@@ -125,6 +133,7 @@ model SparePart {
   averageCost    BigInt?   @map("average_cost")
   // Projection only: I2.2 Stock Service must be the sole writer and update it with a movement.
   stockOnHand    BigInt    @default(0) @map("stock_on_hand")
+  stockVersion   BigInt    @default(0) @map("stock_version")
   minimumStock   BigInt    @default(0) @map("minimum_stock")
   isActive       Boolean   @default(true) @map("is_active")
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
@@ -136,6 +145,7 @@ model SparePart {
   slsItems       SlsItem[]
   serviceRevisionItems ServiceRevisionItem[]
   slsRevisionItems SlsRevisionItem[]
+  stockOpnameItems  StockOpnameItem[]
 
   @@index([isActive, deletedAt, name])
   @@map("spare_parts")
@@ -166,6 +176,45 @@ model StockMovement {
   @@index([reversalOfId])
   @@index([sourceType, sourceId, sourceRevision, sourceOperation])
   @@map("stock_movements")
+}
+
+model StockOpname {
+  id            BigInt            @id @default(autoincrement())
+  opnameNumber  String            @unique @map("opname_number") @db.VarChar(40)
+  transactionAt DateTime          @map("transaction_at") @db.Timestamptz(3)
+  status        StockOpnameStatus @default(REVISION)
+  createdById   BigInt            @map("created_by_id")
+  finalizedById BigInt?           @map("finalized_by_id")
+  finalizedAt   DateTime?         @map("finalized_at") @db.Timestamptz(3)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy     User              @relation("StockOpnameCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  finalizedBy   User?             @relation("StockOpnameFinalizer", fields: [finalizedById], references: [id], onDelete: Restrict)
+  items         StockOpnameItem[]
+
+  @@index([status, transactionAt])
+  @@index([createdById, transactionAt])
+  @@map("stock_opnames")
+}
+
+model StockOpnameItem {
+  id                  BigInt       @id @default(autoincrement())
+  stockOpnameId       BigInt       @map("stock_opname_id")
+  sparePartId         BigInt       @map("spare_part_id")
+  lineNumber          Int          @map("line_number")
+  partCodeSnapshot    String       @map("part_code_snapshot") @db.VarChar(32)
+  partNameSnapshot    String       @map("part_name_snapshot") @db.VarChar(150)
+  systemStock         BigInt       @map("system_stock")
+  physicalStock      BigInt?      @map("physical_stock")
+  difference          BigInt?
+  capturedStockVersion BigInt      @map("captured_stock_version")
+  stockOpname         StockOpname  @relation(fields: [stockOpnameId], references: [id], onDelete: Restrict)
+  sparePart           SparePart    @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+
+  @@unique([stockOpnameId, sparePartId])
+  @@unique([stockOpnameId, lineNumber])
+  @@index([sparePartId, stockOpnameId])
+  @@map("stock_opname_items")
 }
 
 model IdempotencyRecord {

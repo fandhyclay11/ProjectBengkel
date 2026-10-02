@@ -1,0 +1,3 @@
+import { NextResponse } from "next/server";
+import { currentSession, hasValidCsrf } from "@/server/auth";
+export async function requireAuth(request: Request, mutate = false) { const session = await currentSession(); if (!session) return { session: null, response: NextResponse.json({ error: "Autentikasi diperlukan." }, { status: 401 }) }; if (session.user.mustChangePassword) return { session: null, response: NextResponse.json({ error: "Ganti password sebelum melanjutkan." }, { status: 403 }) }; if (mutate && !(await hasValidCsrf(request, session))) return { session: null, response: NextResponse.json({ error: "Permintaan tidak valid." }, { status: 403 }) }; return { session, response: null }; }

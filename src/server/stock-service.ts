@@ -91,6 +91,7 @@ export async function applyStockMovement(tx: Prisma.TransactionClient, input: {
     where: { id: part.id },
     data: {
       stockOnHand: { increment: input.quantity },
+      stockVersion: { increment: 1n },
       ...(input.quantity > 0n ? { averageCost: nextAverageCost! } : {}),
     },
   });
@@ -161,7 +162,7 @@ export async function applyPurchaseInventoryDelta(tx: Prisma.TransactionClient, 
     throw new StockServiceError("INVALID", "Nilai persediaan di luar batas penyimpanan.");
   }
 
-  await tx.sparePart.update({ where: { id: part.id }, data: { stockOnHand: nextStock, averageCost: nextAverageCost } });
+  await tx.sparePart.update({ where: { id: part.id }, data: { stockOnHand: nextStock, averageCost: nextAverageCost, stockVersion: { increment: 1n } } });
   const movement = await tx.stockMovement.create({
     data: {
       sparePartId: part.id,
@@ -200,7 +201,7 @@ export async function applyStockDelta(tx: Prisma.TransactionClient, input: {
   if (unitCost === null || unitCost === undefined || unitCost <= 0n) throw new StockServiceError("STATE_CONFLICT", "HPP tersimpan tidak tersedia.");
   const valuationDelta = input.quantityDelta * (input.movementType === "REVERSAL" ? unitCost : (part.averageCost ?? unitCost));
   if (valuationDelta < MIN_BIGINT || valuationDelta > MAX_BIGINT) throw new StockServiceError("INVALID", "Nilai perubahan stok di luar batas.");
-  await tx.sparePart.update({ where: { id: part.id }, data: { stockOnHand: nextStock } });
+  await tx.sparePart.update({ where: { id: part.id }, data: { stockOnHand: nextStock, stockVersion: { increment: 1n } } });
   const movement = await tx.stockMovement.create({ data: { sparePartId: part.id, movementType: input.movementType, quantity: input.quantityDelta, unitCost, valuationDelta, sourceType: input.sourceType, sourceId: input.sourceId, sourceRevision: input.sourceRevision, sourceOperation: input.sourceOperation, actorId: input.actorId, occurredAt: new Date(), reversalOfId: input.reversalOfId } });
   return { movement, currentStock: nextStock, averageCost: part.averageCost, unitCost };
 }
