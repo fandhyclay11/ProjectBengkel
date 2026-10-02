@@ -17,7 +17,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
     "backup:scheduled": "tsx scripts/backup-scheduled.ts",
-    "test:unit": "tsx --test src/server/password.test.ts src/server/datetime.test.ts",
+    "test:unit": "tsx --test src/server/password.test.ts src/server/datetime.test.ts src/server/expense-calculation.test.ts",
     "test:integration": "node scripts/test-integration.mjs",
     "test:restore-safe": "tsx scripts/test-restore-isolated.ts"
   },

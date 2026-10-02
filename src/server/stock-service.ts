@@ -38,6 +38,8 @@ export async function applyStockMovement(tx: Prisma.TransactionClient, input: {
   sourceId: string;
   actorId: bigint;
   reversalOfId?: bigint;
+  sourceRevision?: number;
+  sourceOperation?: string;
 }) {
   if (input.quantity === 0n || input.quantity < MIN_BIGINT || input.quantity > MAX_BIGINT || input.sourceType.length > 80 || input.sourceId.length > 200) {
     throw new StockServiceError("INVALID", "Data pergerakan stok tidak valid.");
@@ -107,6 +109,8 @@ export async function applyStockMovement(tx: Prisma.TransactionClient, input: {
       actorId: input.actorId,
       occurredAt: new Date(),
       reversalOfId: input.reversalOfId,
+      sourceRevision: input.sourceRevision,
+      sourceOperation: input.sourceOperation,
     },
   });
   return {
@@ -174,6 +178,31 @@ export async function applyPurchaseInventoryDelta(tx: Prisma.TransactionClient, 
     },
   });
   return { movement, currentStock: nextStock, averageCost: nextAverageCost, inventoryValue: afterValue };
+}
+
+export async function applyStockDelta(tx: Prisma.TransactionClient, input: {
+  sparePartId: bigint;
+  quantityDelta: bigint;
+  movementType: "CORRECTION" | "REVERSAL";
+  sourceType: string;
+  sourceId: string;
+  actorId: bigint;
+  sourceRevision?: number;
+  sourceOperation?: string;
+  reversalOfId?: bigint;
+  unitCost?: bigint;
+}) {
+  if (input.quantityDelta === 0n || input.quantityDelta < MIN_BIGINT || input.quantityDelta > MAX_BIGINT) throw new StockServiceError("INVALID", "Perubahan stok tidak valid.");
+  const part = await lockSparePart(tx, input.sparePartId);
+  const nextStock = part.stockOnHand + input.quantityDelta;
+  if (nextStock < 0n) throw new StockServiceError("INSUFFICIENT_STOCK", "Stok tidak mencukupi.");
+  const unitCost = input.unitCost ?? part.averageCost;
+  if (unitCost === null || unitCost === undefined || unitCost <= 0n) throw new StockServiceError("STATE_CONFLICT", "HPP tersimpan tidak tersedia.");
+  const valuationDelta = input.quantityDelta * (input.movementType === "REVERSAL" ? unitCost : (part.averageCost ?? unitCost));
+  if (valuationDelta < MIN_BIGINT || valuationDelta > MAX_BIGINT) throw new StockServiceError("INVALID", "Nilai perubahan stok di luar batas.");
+  await tx.sparePart.update({ where: { id: part.id }, data: { stockOnHand: nextStock } });
+  const movement = await tx.stockMovement.create({ data: { sparePartId: part.id, movementType: input.movementType, quantity: input.quantityDelta, unitCost, valuationDelta, sourceType: input.sourceType, sourceId: input.sourceId, sourceRevision: input.sourceRevision, sourceOperation: input.sourceOperation, actorId: input.actorId, occurredAt: new Date(), reversalOfId: input.reversalOfId } });
+  return { movement, currentStock: nextStock, averageCost: part.averageCost, unitCost };
 }
 
 export async function recordOpeningStock(input: {

@@ -1,0 +1,33 @@
+import "dotenv/config";
+import assert from "node:assert/strict";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import test from "node:test";
+import pg from "pg";
+import { hashPassword } from "@/server/password";
+
+const port = 3201;
+const baseUrl = `http://localhost:${port}`;
+const databaseUrlFor = (source: string, database: string) => { const url = new URL(source); url.pathname = `/${database}`; return url.toString(); };
+const quote = (value: string) => { if (!/^[A-Za-z0-9_]+$/.test(value)) throw new Error("Unsafe identifier"); return `"${value}"`; };
+async function wait(server: ChildProcess) { const deadline = Date.now() + 30000; while (Date.now() < deadline) { if (server.exitCode !== null) throw new Error(`HTTP server exited with ${server.exitCode}`); try { await fetch(`${baseUrl}/api/auth/session`); return; } catch { await new Promise((resolve) => setTimeout(resolve, 250)); } } throw new Error("HTTP server timeout"); }
+function cookies(response: Response) { return response.headers.getSetCookie().map((value) => value.split(";", 1)[0]).join("; "); }
+async function login(username: string, password: string) { const response = await fetch(`${baseUrl}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username, password }) }); assert.equal(response.status, 200); const cookie = cookies(response); const session = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie } }); const body = await session.json() as { csrfToken: string }; return { cookie, csrf: body.csrfToken }; }
+
+test("O3.4 Expense Admin-only APIs enforce authorization, CSRF and safe lifecycle", async (t) => {
+  const sourceUrl = process.env.DATABASE_URL; const adminUrl = process.env.DATABASE_RESTORE_ADMIN_URL;
+  if (!sourceUrl || !adminUrl) { t.skip("DATABASE_URL and DATABASE_RESTORE_ADMIN_URL are required"); return; }
+  const suffix = randomUUID().replaceAll("-", "").slice(0, 12); const database = `pbo34${suffix}`; const url = databaseUrlFor(sourceUrl, database); const password = `O34-${suffix}-Password!`; const admin = new pg.Client({ connectionString: adminUrl }); admin.on("error", () => undefined); let server: ChildProcess | undefined;
+  try { await admin.connect(); await admin.query(`CREATE DATABASE ${quote(database)} TEMPLATE ${quote(new URL(sourceUrl).pathname.slice(1))}`); const fixture = new pg.Client({ connectionString: url }); fixture.on("error", () => undefined); await fixture.connect(); const hash = await hashPassword(password); await fixture.query("INSERT INTO users(username, password_hash, role, updated_at) VALUES ($1, $2, 'ADMIN', CURRENT_TIMESTAMP), ($3, $2, 'USER', CURRENT_TIMESTAMP)", [`it_o34_admin_${suffix}`, hash, `it_o34_user_${suffix}`]); await fixture.end(); server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], { env: { ...process.env, NODE_ENV: "test", DATABASE_URL: url }, stdio: "ignore", windowsHide: true }); await wait(server);
+    const user = await login(`it_o34_user_${suffix}`, password); const adminSession = await login(`it_o34_admin_${suffix}`, password); assert.equal(adminSession.csrf, adminSession.cookie.match(/(?:^|; )pb_csrf=([^;]+)/)?.[1]); const common = { transactionAt: "2026-10-02T10:00", items: [{ description: "Listrik", quantity: "1.250", unitPrice: "100" }] };
+    const userList = await fetch(`${baseUrl}/api/admin/expenses`, { headers: { cookie: user.cookie } }); assert.equal(userList.status, 403);
+    const userPreview = await fetch(`${baseUrl}/api/admin/expenses/preview`, { method: "POST", headers: { "content-type": "application/json", cookie: user.cookie }, body: JSON.stringify(common) }); assert.equal(userPreview.status, 403);
+    const userCanceled = await fetch(`${baseUrl}/api/admin/expenses/canceled`, { headers: { cookie: user.cookie } }); assert.equal(userCanceled.status, 403);
+    const csrfRejected = await fetch(`${baseUrl}/api/admin/expenses/preview`, { method: "POST", headers: { "content-type": "application/json", cookie: adminSession.cookie }, body: JSON.stringify(common) }); assert.equal(csrfRejected.status, 403);
+    const previewResponse = await fetch(`${baseUrl}/api/admin/expenses/preview`, { method: "POST", headers: { "content-type": "application/json", cookie: adminSession.cookie, origin: baseUrl, "x-csrf-token": adminSession.csrf }, body: JSON.stringify(common) }); const previewBody = await previewResponse.json(); assert.equal(previewResponse.status, 200, JSON.stringify(previewBody)); assert.equal(previewBody.preview.totalAmount, "125");
+    const createdResponse = await fetch(`${baseUrl}/api/admin/expenses`, { method: "POST", headers: { "content-type": "application/json", cookie: adminSession.cookie, origin: baseUrl, "x-csrf-token": adminSession.csrf, "idempotency-key": `create-${suffix}` }, body: JSON.stringify(common) }); assert.equal(createdResponse.status, 201); const created = (await createdResponse.json()).expense as { id: string; expenseNumber: string };
+    const editResponse = await fetch(`${baseUrl}/api/admin/expenses/${created.id}`, { method: "PATCH", headers: { "content-type": "application/json", cookie: adminSession.cookie, origin: baseUrl, "x-csrf-token": adminSession.csrf, "idempotency-key": `edit-${suffix}` }, body: JSON.stringify({ ...common, transactionAt: "2026-10-02T11:00" }) }); assert.equal(editResponse.status, 200); assert.equal((await editResponse.json()).expense.expenseNumber, created.expenseNumber);
+    const cancelResponse = await fetch(`${baseUrl}/api/admin/expenses/${created.id}/cancel`, { method: "POST", headers: { cookie: adminSession.cookie, origin: baseUrl, "x-csrf-token": adminSession.csrf, "idempotency-key": `cancel-${suffix}` } }); assert.equal(cancelResponse.status, 200); assert.equal((await cancelResponse.json()).expense.status, "CANCELED");
+    const canceled = await fetch(`${baseUrl}/api/admin/expenses/canceled`, { headers: { cookie: adminSession.cookie } }); assert.equal(canceled.status, 200); assert.equal((await canceled.json()).expenses[0].status, "CANCELED");
+  } finally { if (server && server.exitCode === null) { if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/PID", String(server.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" }); else server.kill("SIGTERM"); } await admin.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()", [database]).catch(() => undefined); await admin.query(`DROP DATABASE IF EXISTS ${quote(database)}`).catch(() => undefined); await admin.end().catch(() => undefined); }
+});

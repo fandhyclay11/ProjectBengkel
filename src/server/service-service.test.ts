@@ -18,6 +18,7 @@ test("Service preview and final save are transient, atomic, costed and idempoten
   const key = `service-test-${suffix}`;
   const rollback = `ROLLBACK_SERVICE_${suffix}`;
   let partId: bigint | undefined;
+  let createdServiceNumber: string | undefined;
   try {
     await prisma.$transaction(async (tx) => {
       const [sequence] = await tx.$queryRaw<Array<{ value: bigint }>>`SELECT nextval('sparepart_code_seq') AS value`;
@@ -28,9 +29,10 @@ test("Service preview and final save are transient, atomic, costed and idempoten
       const preview = await previewService(input, "USER", tx);
       assert.equal(preview.totalAmount, "18500");
       assert.equal("totalHpp" in preview, false);
-      assert.equal(await tx.service.count(), 0);
-      assert.equal(await tx.stockMovement.count({ where: { sourceType: "SERVICE" } }), 0);
+      assert.equal(await tx.service.count({ where: { createdById: user.id } }), 0);
+      assert.equal(await tx.stockMovement.count({ where: { sourceType: "SERVICE", actorId: user.id } }), 0);
       const created = await createService(input, actor, key, "USER", tx);
+      createdServiceNumber = created.serviceNumber;
       assert.equal(created.status, "COMPLETED");
       assert.match(created.serviceNumber, /^SRV-20260930-\d{4}$/);
       assert.equal(created.totalAmount, "18500");
@@ -40,7 +42,7 @@ test("Service preview and final save are transient, atomic, costed and idempoten
       assert.equal(partAfter.averageCost, 1200n);
       const replay = await createService(input, actor, key, "USER", tx);
       assert.equal(replay.id, created.id);
-      assert.equal(await tx.service.count(), 1);
+      assert.equal(await tx.service.count({ where: { createdById: user.id } }), 1);
       assert.equal(await tx.stockMovement.count({ where: { sourceType: "SERVICE", sourceId: created.id } }), 1);
       await assert.rejects(createService({ ...input, items: [{ ...input.items[0]!, quantity: 9n }] }, actor, key, "USER", tx), /data yang berbeda/i);
       await assert.rejects(createService({ ...input, jobs: [] }, actor, `empty-${suffix}`, "USER", tx), /minimal satu/i);
@@ -49,7 +51,8 @@ test("Service preview and final save are transient, atomic, costed and idempoten
       throw new Error(rollback);
     });
   } catch (error) { assert.equal((error as Error).message, rollback); }
-  assert.equal(await prisma.service.count({ where: { serviceNumber: { startsWith: "SRV-20260930-" } } }), 0);
+  assert.ok(createdServiceNumber);
+  assert.equal(await prisma.service.count({ where: { serviceNumber: createdServiceNumber } }), 0);
   if (partId !== undefined) assert.equal(await prisma.sparePart.count({ where: { id: partId } }), 0);
   await prisma.user.delete({ where: { id: user.id } });
 });

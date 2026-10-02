@@ -39,6 +39,11 @@ enum SlsStatus {
   CANCELED
 }
 
+enum ExpenseStatus {
+  COMPLETED
+  CANCELED
+}
+
 model User {
   id                   BigInt       @id @default(autoincrement())
   username             String       @unique @db.VarChar(80)
@@ -57,6 +62,9 @@ model User {
   createdPurchases     Purchase[]
   createdServices      Service[] @relation("ServiceCreator")
   createdSls           Sls[] @relation("SlsCreator")
+  serviceRevisions     ServiceRevision[]
+  slsRevisions         SlsRevision[]
+  createdExpenses      Expense[] @relation("ExpenseCreator")
 
   @@map("users")
 }
@@ -126,6 +134,8 @@ model SparePart {
   purchaseItems  PurchaseItem[]
   serviceItems   ServiceItem[]
   slsItems       SlsItem[]
+  serviceRevisionItems ServiceRevisionItem[]
+  slsRevisionItems SlsRevisionItem[]
 
   @@index([isActive, deletedAt, name])
   @@map("spare_parts")
@@ -144,6 +154,8 @@ model StockMovement {
   actorId      BigInt            @map("actor_id")
   occurredAt   DateTime          @default(now()) @map("occurred_at") @db.Timestamptz(3)
   reversalOfId BigInt?           @map("reversal_of_id")
+  sourceRevision Int?            @map("source_revision")
+  sourceOperation String?        @map("source_operation") @db.VarChar(40)
   sparePart    SparePart         @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
   actor        User              @relation(fields: [actorId], references: [id], onDelete: Restrict)
   reversalOf   StockMovement?    @relation("MovementReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
@@ -152,6 +164,7 @@ model StockMovement {
   @@index([sparePartId, occurredAt, id])
   @@index([sourceType, sourceId])
   @@index([reversalOfId])
+  @@index([sourceType, sourceId, sourceRevision, sourceOperation])
   @@map("stock_movements")
 }
 
@@ -235,10 +248,66 @@ model Service {
   createdBy         User          @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
   jobs              ServiceJobDetail[]
   items             ServiceItem[]
+  revisions         ServiceRevision[]
 
   @@index([status, transactionAt])
   @@index([createdById, transactionAt])
   @@map("services")
+}
+
+model ServiceRevision {
+  id                BigInt              @id @default(autoincrement())
+  serviceId         BigInt              @map("service_id")
+  revisionNumber    Int                 @map("revision_number")
+  transactionAt     DateTime            @map("transaction_at") @db.Timestamptz(3)
+  vehicleDescription String?            @map("vehicle_description") @db.VarChar(200)
+  status            ServiceStatus
+  subtotal          BigInt
+  discount          BigInt
+  totalAmount       BigInt              @map("total_amount")
+  totalHpp          BigInt              @map("total_hpp")
+  createdById       BigInt              @map("created_by_id")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  service           Service             @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  createdBy         User                @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  jobs              ServiceRevisionJob[]
+  items             ServiceRevisionItem[]
+
+  @@unique([serviceId, revisionNumber])
+  @@index([serviceId, revisionNumber])
+  @@map("service_revisions")
+}
+
+model ServiceRevisionJob {
+  id          BigInt          @id @default(autoincrement())
+  revisionId  BigInt          @map("revision_id")
+  lineNumber  Int             @map("line_number")
+  description String          @db.VarChar(300)
+  amount      BigInt
+  revision    ServiceRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+
+  @@unique([revisionId, lineNumber])
+  @@map("service_revision_jobs")
+}
+
+model ServiceRevisionItem {
+  id                BigInt          @id @default(autoincrement())
+  revisionId        BigInt          @map("revision_id")
+  sparePartId       BigInt          @map("spare_part_id")
+  lineNumber         Int             @map("line_number")
+  partCodeSnapshot   String          @map("part_code_snapshot") @db.VarChar(32)
+  partNameSnapshot   String          @map("part_name_snapshot") @db.VarChar(150)
+  quantity           BigInt
+  sellingPrice       BigInt          @map("selling_price")
+  lineAmount         BigInt          @map("line_amount")
+  unitHppSnapshot    BigInt          @map("unit_hpp_snapshot")
+  lineHpp            BigInt          @map("line_hpp")
+  revision           ServiceRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  sparePart          SparePart       @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+
+  @@unique([revisionId, sparePartId])
+  @@unique([revisionId, lineNumber])
+  @@map("service_revision_items")
 }
 
 model ServiceJobDetail {
@@ -289,10 +358,86 @@ model Sls {
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   createdBy     User      @relation("SlsCreator", fields: [createdById], references: [id], onDelete: Restrict)
   items         SlsItem[]
+  revisions     SlsRevision[]
 
   @@index([status, transactionAt])
   @@index([createdById, transactionAt])
   @@map("sls")
+}
+
+model Expense {
+  id                    BigInt        @id @default(autoincrement())
+  expenseNumber         String        @unique @map("expense_number") @db.VarChar(40)
+  transactionAt         DateTime      @map("transaction_at") @db.Timestamptz(3)
+  status                ExpenseStatus @default(COMPLETED)
+  createdById           BigInt        @map("created_by_id")
+  totalAmount           BigInt        @default(0) @map("total_amount")
+  generalNote           String?       @map("general_note") @db.VarChar(1000)
+  externalReceiptNumber String?       @map("external_receipt_number") @db.VarChar(100)
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy             User          @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  items                 ExpenseItem[]
+
+  @@index([status, transactionAt])
+  @@index([createdById, transactionAt])
+  @@map("expenses")
+}
+
+model ExpenseItem {
+  id          BigInt   @id @default(autoincrement())
+  expenseId   BigInt   @map("expense_id")
+  lineNumber  Int      @map("line_number")
+  description String   @db.VarChar(300)
+  quantity    Decimal  @db.Decimal(18, 3)
+  unitPrice   BigInt   @map("unit_price")
+  lineAmount  BigInt   @map("line_amount")
+  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Restrict)
+
+  @@unique([expenseId, lineNumber])
+  @@index([expenseId, lineNumber])
+  @@map("expense_items")
+}
+
+model SlsRevision {
+  id             BigInt           @id @default(autoincrement())
+  slsId          BigInt           @map("sls_id")
+  revisionNumber Int              @map("revision_number")
+  transactionAt  DateTime         @map("transaction_at") @db.Timestamptz(3)
+  status         SlsStatus
+  subtotal       BigInt
+  discount       BigInt
+  totalAmount    BigInt           @map("total_amount")
+  totalHpp       BigInt           @map("total_hpp")
+  createdById    BigInt           @map("created_by_id")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  sls            Sls              @relation(fields: [slsId], references: [id], onDelete: Restrict)
+  createdBy      User             @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  items          SlsRevisionItem[]
+
+  @@unique([slsId, revisionNumber])
+  @@index([slsId, revisionNumber])
+  @@map("sls_revisions")
+}
+
+model SlsRevisionItem {
+  id                BigInt       @id @default(autoincrement())
+  revisionId        BigInt       @map("revision_id")
+  sparePartId       BigInt       @map("spare_part_id")
+  lineNumber        Int          @map("line_number")
+  partCodeSnapshot  String       @map("part_code_snapshot") @db.VarChar(32)
+  partNameSnapshot  String       @map("part_name_snapshot") @db.VarChar(150)
+  quantity          BigInt
+  sellingPrice      BigInt       @map("selling_price")
+  lineAmount        BigInt       @map("line_amount")
+  unitHppSnapshot   BigInt       @map("unit_hpp_snapshot")
+  lineHpp           BigInt       @map("line_hpp")
+  revision          SlsRevision  @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  sparePart         SparePart    @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+
+  @@unique([revisionId, sparePartId])
+  @@unique([revisionId, lineNumber])
+  @@map("sls_revision_items")
 }
 
 model SlsItem {
