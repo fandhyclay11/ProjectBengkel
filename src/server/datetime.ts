@@ -9,6 +9,8 @@ function timezone() {
 
 type Parts = { year: number; month: number; day: number; hour: number; minute: number };
 
+export type WorkshopDateRange = { from: Date; toExclusive: Date; fromDate: string; toDate: string };
+
 function asUtcMillis(parts: Parts) {
   const date = new Date(0);
   date.setUTCFullYear(parts.year, parts.month - 1, parts.day);
@@ -60,6 +62,21 @@ export function workshopDateKey(date: Date) {
   }).formatToParts(date);
   const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${value.year}${value.month}${value.day}`;
+}
+
+function nextCalendarDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day + 1));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+}
+
+export function workshopDateRange(fromDate: string, toDate: string): WorkshopDateRange {
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!datePattern.test(fromDate) || !datePattern.test(toDate) || fromDate > toDate) throw new DateTimeInputError("Rentang tanggal laporan tidak valid.");
+  const from = parseWorkshopDateTime(`${fromDate}T00:00`);
+  parseWorkshopDateTime(`${toDate}T00:00`);
+  const toExclusive = parseWorkshopDateTime(`${nextCalendarDate(toDate)}T00:00`);
+  return { from, toExclusive, fromDate, toDate };
 }
 
 export function workshopDateTimeInput(date: Date) {
