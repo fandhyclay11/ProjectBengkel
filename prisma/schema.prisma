@@ -50,58 +50,65 @@ enum StockOpnameStatus {
   APPROVED
 }
 
+enum StockOpnameApprovalStatus {
+  IN_PROGRESS
+  APPROVED
+}
+
 model User {
-  id                   BigInt       @id @default(autoincrement())
-  username             String       @unique @db.VarChar(80)
-  passwordHash         String       @map("password_hash") @db.VarChar(255)
-  role                 UserRole
-  isActive             Boolean      @default(true) @map("is_active")
-  mustChangePassword   Boolean      @default(false) @map("must_change_password")
-  sessionVersion       Int          @default(0) @map("session_version")
-  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
-  sessions             Session[]
-  auditEvents          AuditLog[]   @relation("AuditActor")
-  auditDeletionEvents  AuditDeletionTrace[]
-  idempotencyRecords   IdempotencyRecord[]
-  stockMovements       StockMovement[]
-  createdPurchases     Purchase[]
-  createdServices      Service[] @relation("ServiceCreator")
-  createdSls           Sls[] @relation("SlsCreator")
-  serviceRevisions     ServiceRevision[]
-  slsRevisions         SlsRevision[]
-  createdExpenses      Expense[] @relation("ExpenseCreator")
-  createdStockOpnames  StockOpname[] @relation("StockOpnameCreator")
-  finalizedStockOpnames StockOpname[] @relation("StockOpnameFinalizer")
+  id                            BigInt                         @id @default(autoincrement())
+  username                      String                         @unique @db.VarChar(80)
+  passwordHash                  String                         @map("password_hash") @db.VarChar(255)
+  role                          UserRole
+  isActive                      Boolean                        @default(true) @map("is_active")
+  mustChangePassword            Boolean                        @default(false) @map("must_change_password")
+  sessionVersion                Int                            @default(0) @map("session_version")
+  createdAt                     DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                     DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  sessions                      Session[]
+  auditEvents                   AuditLog[]                     @relation("AuditActor")
+  auditDeletionEvents           AuditDeletionTrace[]
+  idempotencyRecords            IdempotencyRecord[]
+  stockMovements                StockMovement[]
+  createdPurchases              Purchase[]
+  createdServices               Service[]                      @relation("ServiceCreator")
+  createdSls                    Sls[]                          @relation("SlsCreator")
+  serviceRevisions              ServiceRevision[]
+  slsRevisions                  SlsRevision[]
+  createdExpenses               Expense[]                      @relation("ExpenseCreator")
+  createdStockOpnames           StockOpname[]                  @relation("StockOpnameCreator")
+  finalizedStockOpnames         StockOpname[]                  @relation("StockOpnameFinalizer")
+  approvedStockOpnames          StockOpname[]                  @relation("StockOpnameApprover")
+  stockOpnameApprovalOperations StockOpnameApprovalOperation[]
 
   @@map("users")
 }
 
 model Session {
-  id                BigInt   @id @default(autoincrement())
-  tokenHash         String   @unique @map("token_hash") @db.Char(64)
-  csrfTokenHash     String   @map("csrf_token_hash") @db.Char(64)
-  userId            BigInt   @map("user_id")
-  userSessionVersion Int     @map("user_session_version")
-  expiresAt         DateTime @map("expires_at") @db.Timestamptz(3)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 BigInt   @id @default(autoincrement())
+  tokenHash          String   @unique @map("token_hash") @db.Char(64)
+  csrfTokenHash      String   @map("csrf_token_hash") @db.Char(64)
+  userId             BigInt   @map("user_id")
+  userSessionVersion Int      @map("user_session_version")
+  expiresAt          DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
   @@map("sessions")
 }
 
 model AuditLog {
-  id                   BigInt   @id @default(autoincrement())
-  actorId              BigInt?  @map("actor_id")
-  actorUsernameSnapshot String? @map("actor_username_snapshot") @db.VarChar(80)
-  action               String   @db.VarChar(100)
-  objectType           String?  @map("object_type") @db.VarChar(100)
-  objectId             String?  @map("object_id") @db.VarChar(100)
-  beforeAfter          Json?    @map("before_after")
-  context              Json?
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  actor                User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  id                    BigInt   @id @default(autoincrement())
+  actorId               BigInt?  @map("actor_id")
+  actorUsernameSnapshot String?  @map("actor_username_snapshot") @db.VarChar(80)
+  action                String   @db.VarChar(100)
+  objectType            String?  @map("object_type") @db.VarChar(100)
+  objectId              String?  @map("object_id") @db.VarChar(100)
+  beforeAfter           Json?    @map("before_after")
+  context               Json?
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor                 User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([createdAt, id])
   @@index([actorId, createdAt])
@@ -110,66 +117,66 @@ model AuditLog {
 }
 
 model AuditDeletionTrace {
-  id                  BigInt   @id @default(autoincrement())
-  actorId             BigInt   @map("actor_id")
-  actorUsernameSnapshot String @map("actor_username_snapshot") @db.VarChar(80)
-  deletedAuditId      BigInt   @map("deleted_audit_id")
-  deletedAction       String   @map("deleted_action") @db.VarChar(100)
-  deletedObjectType   String?  @map("deleted_object_type") @db.VarChar(100)
-  deletedObjectId     String?  @map("deleted_object_id") @db.VarChar(100)
-  deletedAt           DateTime @default(now()) @map("deleted_at") @db.Timestamptz(3)
-  actor               User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  id                    BigInt   @id @default(autoincrement())
+  actorId               BigInt   @map("actor_id")
+  actorUsernameSnapshot String   @map("actor_username_snapshot") @db.VarChar(80)
+  deletedAuditId        BigInt   @map("deleted_audit_id")
+  deletedAction         String   @map("deleted_action") @db.VarChar(100)
+  deletedObjectType     String?  @map("deleted_object_type") @db.VarChar(100)
+  deletedObjectId       String?  @map("deleted_object_id") @db.VarChar(100)
+  deletedAt             DateTime @default(now()) @map("deleted_at") @db.Timestamptz(3)
+  actor                 User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
 
   @@index([deletedAt, id])
   @@map("audit_deletion_traces")
 }
 
 model SparePart {
-  id             BigInt    @id @default(autoincrement())
-  code           String    @unique @db.VarChar(32)
-  name           String    @db.VarChar(150)
-  sellingPrice   BigInt    @map("selling_price")
-  latestBuyPrice BigInt?   @map("latest_buy_price")
-  averageCost    BigInt?   @map("average_cost")
+  id                   BigInt                @id @default(autoincrement())
+  code                 String                @unique @db.VarChar(32)
+  name                 String                @db.VarChar(150)
+  sellingPrice         BigInt                @map("selling_price")
+  latestBuyPrice       BigInt?               @map("latest_buy_price")
+  averageCost          BigInt?               @map("average_cost")
   // Projection only: I2.2 Stock Service must be the sole writer and update it with a movement.
-  stockOnHand    BigInt    @default(0) @map("stock_on_hand")
-  stockVersion   BigInt    @default(0) @map("stock_version")
-  minimumStock   BigInt    @default(0) @map("minimum_stock")
-  isActive       Boolean   @default(true) @map("is_active")
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  movements      StockMovement[]
-  purchaseItems  PurchaseItem[]
-  serviceItems   ServiceItem[]
-  slsItems       SlsItem[]
+  stockOnHand          BigInt                @default(0) @map("stock_on_hand")
+  stockVersion         BigInt                @default(0) @map("stock_version")
+  minimumStock         BigInt                @default(0) @map("minimum_stock")
+  isActive             Boolean               @default(true) @map("is_active")
+  deletedAt            DateTime?             @map("deleted_at") @db.Timestamptz(3)
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  movements            StockMovement[]
+  purchaseItems        PurchaseItem[]
+  serviceItems         ServiceItem[]
+  slsItems             SlsItem[]
   serviceRevisionItems ServiceRevisionItem[]
-  slsRevisionItems SlsRevisionItem[]
-  stockOpnameItems  StockOpnameItem[]
+  slsRevisionItems     SlsRevisionItem[]
+  stockOpnameItems     StockOpnameItem[]
 
   @@index([isActive, deletedAt, name])
   @@map("spare_parts")
 }
 
 model StockMovement {
-  id           BigInt            @id @default(autoincrement())
-  sparePartId  BigInt            @map("spare_part_id")
-  movementType StockMovementType @map("movement_type")
-  quantity     BigInt
-  unitCost     BigInt?           @map("unit_cost")
-  valuationDelta BigInt?         @map("valuation_delta")
-  purchaseValueDelta BigInt?     @map("purchase_value_delta")
-  sourceType   String            @map("source_type") @db.VarChar(80)
-  sourceId     String            @map("source_id") @db.VarChar(200)
-  actorId      BigInt            @map("actor_id")
-  occurredAt   DateTime          @default(now()) @map("occurred_at") @db.Timestamptz(3)
-  reversalOfId BigInt?           @map("reversal_of_id")
-  sourceRevision Int?            @map("source_revision")
-  sourceOperation String?        @map("source_operation") @db.VarChar(40)
-  sparePart    SparePart         @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
-  actor        User              @relation(fields: [actorId], references: [id], onDelete: Restrict)
-  reversalOf   StockMovement?    @relation("MovementReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversals    StockMovement[]   @relation("MovementReversal")
+  id                 BigInt            @id @default(autoincrement())
+  sparePartId        BigInt            @map("spare_part_id")
+  movementType       StockMovementType @map("movement_type")
+  quantity           BigInt
+  unitCost           BigInt?           @map("unit_cost")
+  valuationDelta     BigInt?           @map("valuation_delta")
+  purchaseValueDelta BigInt?           @map("purchase_value_delta")
+  sourceType         String            @map("source_type") @db.VarChar(80)
+  sourceId           String            @map("source_id") @db.VarChar(200)
+  actorId            BigInt            @map("actor_id")
+  occurredAt         DateTime          @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  reversalOfId       BigInt?           @map("reversal_of_id")
+  sourceRevision     Int?              @map("source_revision")
+  sourceOperation    String?           @map("source_operation") @db.VarChar(40)
+  sparePart          SparePart         @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+  actor              User              @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  reversalOf         StockMovement?    @relation("MovementReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversals          StockMovement[]   @relation("MovementReversal")
 
   @@index([sparePartId, occurredAt, id])
   @@index([sourceType, sourceId])
@@ -179,18 +186,23 @@ model StockMovement {
 }
 
 model StockOpname {
-  id            BigInt            @id @default(autoincrement())
-  opnameNumber  String            @unique @map("opname_number") @db.VarChar(40)
-  transactionAt DateTime          @map("transaction_at") @db.Timestamptz(3)
-  status        StockOpnameStatus @default(REVISION)
-  createdById   BigInt            @map("created_by_id")
-  finalizedById BigInt?           @map("finalized_by_id")
-  finalizedAt   DateTime?         @map("finalized_at") @db.Timestamptz(3)
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
-  createdBy     User              @relation("StockOpnameCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  finalizedBy   User?             @relation("StockOpnameFinalizer", fields: [finalizedById], references: [id], onDelete: Restrict)
-  items         StockOpnameItem[]
+  id                 BigInt                         @id @default(autoincrement())
+  opnameNumber       String                         @unique @map("opname_number") @db.VarChar(40)
+  transactionAt      DateTime                       @map("transaction_at") @db.Timestamptz(3)
+  status             StockOpnameStatus              @default(REVISION)
+  createdById        BigInt                         @map("created_by_id")
+  finalizedById      BigInt?                        @map("finalized_by_id")
+  finalizedAt        DateTime?                      @map("finalized_at") @db.Timestamptz(3)
+  revisionNumber     Int                            @default(1) @map("revision_number")
+  approvedById       BigInt?                        @map("approved_by_id")
+  approvedAt         DateTime?                      @map("approved_at") @db.Timestamptz(3)
+  createdAt          DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy          User                           @relation("StockOpnameCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  finalizedBy        User?                          @relation("StockOpnameFinalizer", fields: [finalizedById], references: [id], onDelete: Restrict)
+  approvedBy         User?                          @relation("StockOpnameApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  items              StockOpnameItem[]
+  approvalOperations StockOpnameApprovalOperation[]
 
   @@index([status, transactionAt])
   @@index([createdById, transactionAt])
@@ -198,18 +210,20 @@ model StockOpname {
 }
 
 model StockOpnameItem {
-  id                  BigInt       @id @default(autoincrement())
-  stockOpnameId       BigInt       @map("stock_opname_id")
-  sparePartId         BigInt       @map("spare_part_id")
-  lineNumber          Int          @map("line_number")
-  partCodeSnapshot    String       @map("part_code_snapshot") @db.VarChar(32)
-  partNameSnapshot    String       @map("part_name_snapshot") @db.VarChar(150)
-  systemStock         BigInt       @map("system_stock")
-  physicalStock      BigInt?      @map("physical_stock")
-  difference          BigInt?
+  id                   BigInt      @id @default(autoincrement())
+  stockOpnameId        BigInt      @map("stock_opname_id")
+  sparePartId          BigInt      @map("spare_part_id")
+  lineNumber           Int         @map("line_number")
+  partCodeSnapshot     String      @map("part_code_snapshot") @db.VarChar(32)
+  partNameSnapshot     String      @map("part_name_snapshot") @db.VarChar(150)
+  systemStock          BigInt      @map("system_stock")
+  physicalStock        BigInt?     @map("physical_stock")
+  difference           BigInt?
   capturedStockVersion BigInt      @map("captured_stock_version")
-  stockOpname         StockOpname  @relation(fields: [stockOpnameId], references: [id], onDelete: Restrict)
-  sparePart           SparePart    @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+  verifiedSystemStock  BigInt      @map("verified_system_stock")
+  verifiedStockVersion BigInt      @map("verified_stock_version")
+  stockOpname          StockOpname @relation(fields: [stockOpnameId], references: [id], onDelete: Restrict)
+  sparePart            SparePart   @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
 
   @@unique([stockOpnameId, sparePartId])
   @@unique([stockOpnameId, lineNumber])
@@ -217,15 +231,36 @@ model StockOpnameItem {
   @@map("stock_opname_items")
 }
 
+model StockOpnameApprovalOperation {
+  id                    BigInt                    @id @default(autoincrement())
+  approvalOperationId   String                    @unique @map("approval_operation_id") @db.VarChar(100)
+  stockOpnameId         BigInt                    @map("stock_opname_id")
+  revisionNumber        Int                       @map("revision_number")
+  actorId               BigInt                    @map("actor_id")
+  operationAt           DateTime                  @default(now()) @map("operation_at") @db.Timestamptz(3)
+  status                StockOpnameApprovalStatus
+  idempotencyOperation  String                    @map("idempotency_operation") @db.VarChar(100)
+  idempotencyRequestKey String                    @map("idempotency_request_key") @db.VarChar(200)
+  adjustmentSummary     Json                      @map("adjustment_summary")
+  createdAt             DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  stockOpname           StockOpname               @relation(fields: [stockOpnameId], references: [id], onDelete: Restrict)
+  actor                 User                      @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([stockOpnameId, revisionNumber])
+  @@index([stockOpnameId, operationAt])
+  @@index([idempotencyOperation, idempotencyRequestKey])
+  @@map("stock_opname_approval_operations")
+}
+
 model IdempotencyRecord {
-  id            BigInt   @id @default(autoincrement())
-  actorId       BigInt   @map("actor_id")
-  operation     String   @db.VarChar(100)
-  requestKey    String   @map("request_key") @db.VarChar(200)
-  requestHash   String   @map("request_hash") @db.Char(64)
-  response      Json
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  actor         User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  id          BigInt   @id @default(autoincrement())
+  actorId     BigInt   @map("actor_id")
+  operation   String   @db.VarChar(100)
+  requestKey  String   @map("request_key") @db.VarChar(200)
+  requestHash String   @map("request_hash") @db.Char(64)
+  response    Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor       User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
 
   @@unique([actorId, operation, requestKey])
   @@index([createdAt])
@@ -233,19 +268,19 @@ model IdempotencyRecord {
 }
 
 model Purchase {
-  id                BigInt         @id @default(autoincrement())
-  purchaseNumber    String         @unique @map("purchase_number") @db.VarChar(40)
-  transactionAt     DateTime       @map("transaction_at") @db.Timestamptz(3)
-  supplierName      String         @map("supplier_name") @db.VarChar(200)
-  status            PurchaseStatus @default(DRAFT)
-  createdById       BigInt         @map("created_by_id")
-  totalAmount       BigInt         @default(0) @map("total_amount")
-  editCount         Int            @default(0) @map("edit_count")
-  confirmedAt       DateTime?      @map("confirmed_at") @db.Timestamptz(3)
-  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
-  createdBy         User           @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  items             PurchaseItem[]
+  id             BigInt         @id @default(autoincrement())
+  purchaseNumber String         @unique @map("purchase_number") @db.VarChar(40)
+  transactionAt  DateTime       @map("transaction_at") @db.Timestamptz(3)
+  supplierName   String         @map("supplier_name") @db.VarChar(200)
+  status         PurchaseStatus @default(DRAFT)
+  createdById    BigInt         @map("created_by_id")
+  totalAmount    BigInt         @default(0) @map("total_amount")
+  editCount      Int            @default(0) @map("edit_count")
+  confirmedAt    DateTime?      @map("confirmed_at") @db.Timestamptz(3)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy      User           @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  items          PurchaseItem[]
 
   @@index([status, transactionAt])
   @@index([createdById, transactionAt])
@@ -253,17 +288,17 @@ model Purchase {
 }
 
 model PurchaseItem {
-  id                BigInt    @id @default(autoincrement())
-  purchaseId        BigInt    @map("purchase_id")
-  sparePartId       BigInt    @map("spare_part_id")
-  lineNumber        Int       @map("line_number")
-  partCodeSnapshot  String    @map("part_code_snapshot") @db.VarChar(32)
-  partNameSnapshot  String    @map("part_name_snapshot") @db.VarChar(150)
-  quantity          BigInt
-  unitBuyPrice      BigInt    @map("unit_buy_price")
-  lineAmount        BigInt    @map("line_amount")
-  purchase          Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
-  sparePart         SparePart @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+  id               BigInt    @id @default(autoincrement())
+  purchaseId       BigInt    @map("purchase_id")
+  sparePartId      BigInt    @map("spare_part_id")
+  lineNumber       Int       @map("line_number")
+  partCodeSnapshot String    @map("part_code_snapshot") @db.VarChar(32)
+  partNameSnapshot String    @map("part_name_snapshot") @db.VarChar(150)
+  quantity         BigInt
+  unitBuyPrice     BigInt    @map("unit_buy_price")
+  lineAmount       BigInt    @map("line_amount")
+  purchase         Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+  sparePart        SparePart @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
 
   @@unique([purchaseId, sparePartId])
   @@unique([purchaseId, lineNumber])
@@ -272,32 +307,32 @@ model PurchaseItem {
 }
 
 model DocumentNumberCounter {
-  series      String @db.VarChar(10)
+  series       String @db.VarChar(10)
   businessDate String @map("business_date") @db.VarChar(8)
-  lastNumber  BigInt @map("last_number")
+  lastNumber   BigInt @map("last_number")
 
   @@id([series, businessDate])
   @@map("document_number_counters")
 }
 
 model Service {
-  id                BigInt        @id @default(autoincrement())
-  serviceNumber     String        @unique @map("service_number") @db.VarChar(40)
-  transactionAt     DateTime      @map("transaction_at") @db.Timestamptz(3)
-  vehicleDescription String?      @map("vehicle_description") @db.VarChar(200)
-  status            ServiceStatus @default(COMPLETED)
-  createdById       BigInt        @map("created_by_id")
-  subtotal          BigInt        @default(0)
-  discount          BigInt        @default(0)
-  totalAmount       BigInt        @default(0) @map("total_amount")
-  totalHpp          BigInt        @default(0) @map("total_hpp")
-  editCount         Int           @default(0) @map("edit_count")
-  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
-  createdBy         User          @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  jobs              ServiceJobDetail[]
-  items             ServiceItem[]
-  revisions         ServiceRevision[]
+  id                 BigInt             @id @default(autoincrement())
+  serviceNumber      String             @unique @map("service_number") @db.VarChar(40)
+  transactionAt      DateTime           @map("transaction_at") @db.Timestamptz(3)
+  vehicleDescription String?            @map("vehicle_description") @db.VarChar(200)
+  status             ServiceStatus      @default(COMPLETED)
+  createdById        BigInt             @map("created_by_id")
+  subtotal           BigInt             @default(0)
+  discount           BigInt             @default(0)
+  totalAmount        BigInt             @default(0) @map("total_amount")
+  totalHpp           BigInt             @default(0) @map("total_hpp")
+  editCount          Int                @default(0) @map("edit_count")
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy          User               @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  jobs               ServiceJobDetail[]
+  items              ServiceItem[]
+  revisions          ServiceRevision[]
 
   @@index([status, transactionAt])
   @@index([createdById, transactionAt])
@@ -305,22 +340,22 @@ model Service {
 }
 
 model ServiceRevision {
-  id                BigInt              @id @default(autoincrement())
-  serviceId         BigInt              @map("service_id")
-  revisionNumber    Int                 @map("revision_number")
-  transactionAt     DateTime            @map("transaction_at") @db.Timestamptz(3)
-  vehicleDescription String?            @map("vehicle_description") @db.VarChar(200)
-  status            ServiceStatus
-  subtotal          BigInt
-  discount          BigInt
-  totalAmount       BigInt              @map("total_amount")
-  totalHpp          BigInt              @map("total_hpp")
-  createdById       BigInt              @map("created_by_id")
-  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  service           Service             @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  createdBy         User                @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  jobs              ServiceRevisionJob[]
-  items             ServiceRevisionItem[]
+  id                 BigInt                @id @default(autoincrement())
+  serviceId          BigInt                @map("service_id")
+  revisionNumber     Int                   @map("revision_number")
+  transactionAt      DateTime              @map("transaction_at") @db.Timestamptz(3)
+  vehicleDescription String?               @map("vehicle_description") @db.VarChar(200)
+  status             ServiceStatus
+  subtotal           BigInt
+  discount           BigInt
+  totalAmount        BigInt                @map("total_amount")
+  totalHpp           BigInt                @map("total_hpp")
+  createdById        BigInt                @map("created_by_id")
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  service            Service               @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  createdBy          User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  jobs               ServiceRevisionJob[]
+  items              ServiceRevisionItem[]
 
   @@unique([serviceId, revisionNumber])
   @@index([serviceId, revisionNumber])
@@ -340,19 +375,19 @@ model ServiceRevisionJob {
 }
 
 model ServiceRevisionItem {
-  id                BigInt          @id @default(autoincrement())
-  revisionId        BigInt          @map("revision_id")
-  sparePartId       BigInt          @map("spare_part_id")
-  lineNumber         Int             @map("line_number")
-  partCodeSnapshot   String          @map("part_code_snapshot") @db.VarChar(32)
-  partNameSnapshot   String          @map("part_name_snapshot") @db.VarChar(150)
-  quantity           BigInt
-  sellingPrice       BigInt          @map("selling_price")
-  lineAmount         BigInt          @map("line_amount")
-  unitHppSnapshot    BigInt          @map("unit_hpp_snapshot")
-  lineHpp            BigInt          @map("line_hpp")
-  revision           ServiceRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
-  sparePart          SparePart       @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+  id               BigInt          @id @default(autoincrement())
+  revisionId       BigInt          @map("revision_id")
+  sparePartId      BigInt          @map("spare_part_id")
+  lineNumber       Int             @map("line_number")
+  partCodeSnapshot String          @map("part_code_snapshot") @db.VarChar(32)
+  partNameSnapshot String          @map("part_name_snapshot") @db.VarChar(150)
+  quantity         BigInt
+  sellingPrice     BigInt          @map("selling_price")
+  lineAmount       BigInt          @map("line_amount")
+  unitHppSnapshot  BigInt          @map("unit_hpp_snapshot")
+  lineHpp          BigInt          @map("line_hpp")
+  revision         ServiceRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  sparePart        SparePart       @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
 
   @@unique([revisionId, sparePartId])
   @@unique([revisionId, lineNumber])
@@ -372,19 +407,19 @@ model ServiceJobDetail {
 }
 
 model ServiceItem {
-  id                BigInt    @id @default(autoincrement())
-  serviceId         BigInt    @map("service_id")
-  sparePartId       BigInt    @map("spare_part_id")
-  lineNumber        Int       @map("line_number")
-  partCodeSnapshot  String    @map("part_code_snapshot") @db.VarChar(32)
-  partNameSnapshot  String    @map("part_name_snapshot") @db.VarChar(150)
-  quantity          BigInt
-  sellingPrice      BigInt    @map("selling_price")
-  lineAmount        BigInt    @map("line_amount")
-  unitHppSnapshot   BigInt    @map("unit_hpp_snapshot")
-  lineHpp           BigInt    @map("line_hpp")
-  service           Service   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  sparePart         SparePart @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+  id               BigInt    @id @default(autoincrement())
+  serviceId        BigInt    @map("service_id")
+  sparePartId      BigInt    @map("spare_part_id")
+  lineNumber       Int       @map("line_number")
+  partCodeSnapshot String    @map("part_code_snapshot") @db.VarChar(32)
+  partNameSnapshot String    @map("part_name_snapshot") @db.VarChar(150)
+  quantity         BigInt
+  sellingPrice     BigInt    @map("selling_price")
+  lineAmount       BigInt    @map("line_amount")
+  unitHppSnapshot  BigInt    @map("unit_hpp_snapshot")
+  lineHpp          BigInt    @map("line_hpp")
+  service          Service   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  sparePart        SparePart @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
 
   @@unique([serviceId, sparePartId])
   @@unique([serviceId, lineNumber])
@@ -393,19 +428,19 @@ model ServiceItem {
 }
 
 model Sls {
-  id            BigInt    @id @default(autoincrement())
-  slsNumber     String    @unique @map("sls_number") @db.VarChar(40)
-  transactionAt DateTime  @map("transaction_at") @db.Timestamptz(3)
-  status        SlsStatus @default(COMPLETED)
-  createdById   BigInt    @map("created_by_id")
-  subtotal      BigInt    @default(0)
-  discount      BigInt    @default(0)
-  totalAmount   BigInt    @default(0) @map("total_amount")
-  totalHpp      BigInt    @default(0) @map("total_hpp")
-  editCount     Int       @default(0) @map("edit_count")
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  createdBy     User      @relation("SlsCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  id            BigInt        @id @default(autoincrement())
+  slsNumber     String        @unique @map("sls_number") @db.VarChar(40)
+  transactionAt DateTime      @map("transaction_at") @db.Timestamptz(3)
+  status        SlsStatus     @default(COMPLETED)
+  createdById   BigInt        @map("created_by_id")
+  subtotal      BigInt        @default(0)
+  discount      BigInt        @default(0)
+  totalAmount   BigInt        @default(0) @map("total_amount")
+  totalHpp      BigInt        @default(0) @map("total_hpp")
+  editCount     Int           @default(0) @map("edit_count")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy     User          @relation("SlsCreator", fields: [createdById], references: [id], onDelete: Restrict)
   items         SlsItem[]
   revisions     SlsRevision[]
 
@@ -434,14 +469,14 @@ model Expense {
 }
 
 model ExpenseItem {
-  id          BigInt   @id @default(autoincrement())
-  expenseId   BigInt   @map("expense_id")
-  lineNumber  Int      @map("line_number")
-  description String   @db.VarChar(300)
-  quantity    Decimal  @db.Decimal(18, 3)
-  unitPrice   BigInt   @map("unit_price")
-  lineAmount  BigInt   @map("line_amount")
-  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Restrict)
+  id          BigInt  @id @default(autoincrement())
+  expenseId   BigInt  @map("expense_id")
+  lineNumber  Int     @map("line_number")
+  description String  @db.VarChar(300)
+  quantity    Decimal @db.Decimal(18, 3)
+  unitPrice   BigInt  @map("unit_price")
+  lineAmount  BigInt  @map("line_amount")
+  expense     Expense @relation(fields: [expenseId], references: [id], onDelete: Restrict)
 
   @@unique([expenseId, lineNumber])
   @@index([expenseId, lineNumber])
@@ -449,19 +484,19 @@ model ExpenseItem {
 }
 
 model SlsRevision {
-  id             BigInt           @id @default(autoincrement())
-  slsId          BigInt           @map("sls_id")
-  revisionNumber Int              @map("revision_number")
-  transactionAt  DateTime         @map("transaction_at") @db.Timestamptz(3)
+  id             BigInt            @id @default(autoincrement())
+  slsId          BigInt            @map("sls_id")
+  revisionNumber Int               @map("revision_number")
+  transactionAt  DateTime          @map("transaction_at") @db.Timestamptz(3)
   status         SlsStatus
   subtotal       BigInt
   discount       BigInt
-  totalAmount    BigInt           @map("total_amount")
-  totalHpp       BigInt           @map("total_hpp")
-  createdById    BigInt           @map("created_by_id")
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  sls            Sls              @relation(fields: [slsId], references: [id], onDelete: Restrict)
-  createdBy      User             @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  totalAmount    BigInt            @map("total_amount")
+  totalHpp       BigInt            @map("total_hpp")
+  createdById    BigInt            @map("created_by_id")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  sls            Sls               @relation(fields: [slsId], references: [id], onDelete: Restrict)
+  createdBy      User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
   items          SlsRevisionItem[]
 
   @@unique([slsId, revisionNumber])
@@ -470,19 +505,19 @@ model SlsRevision {
 }
 
 model SlsRevisionItem {
-  id                BigInt       @id @default(autoincrement())
-  revisionId        BigInt       @map("revision_id")
-  sparePartId       BigInt       @map("spare_part_id")
-  lineNumber        Int          @map("line_number")
-  partCodeSnapshot  String       @map("part_code_snapshot") @db.VarChar(32)
-  partNameSnapshot  String       @map("part_name_snapshot") @db.VarChar(150)
-  quantity          BigInt
-  sellingPrice      BigInt       @map("selling_price")
-  lineAmount        BigInt       @map("line_amount")
-  unitHppSnapshot   BigInt       @map("unit_hpp_snapshot")
-  lineHpp           BigInt       @map("line_hpp")
-  revision          SlsRevision  @relation(fields: [revisionId], references: [id], onDelete: Restrict)
-  sparePart         SparePart    @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
+  id               BigInt      @id @default(autoincrement())
+  revisionId       BigInt      @map("revision_id")
+  sparePartId      BigInt      @map("spare_part_id")
+  lineNumber       Int         @map("line_number")
+  partCodeSnapshot String      @map("part_code_snapshot") @db.VarChar(32)
+  partNameSnapshot String      @map("part_name_snapshot") @db.VarChar(150)
+  quantity         BigInt
+  sellingPrice     BigInt      @map("selling_price")
+  lineAmount       BigInt      @map("line_amount")
+  unitHppSnapshot  BigInt      @map("unit_hpp_snapshot")
+  lineHpp          BigInt      @map("line_hpp")
+  revision         SlsRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  sparePart        SparePart   @relation(fields: [sparePartId], references: [id], onDelete: Restrict)
 
   @@unique([revisionId, sparePartId])
   @@unique([revisionId, lineNumber])

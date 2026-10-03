@@ -206,6 +206,32 @@ export async function applyStockDelta(tx: Prisma.TransactionClient, input: {
   return { movement, currentStock: nextStock, averageCost: part.averageCost, unitCost };
 }
 
+export async function applyStockOpnameAdjustment(tx: Prisma.TransactionClient, input: {
+  sparePartId: bigint;
+  quantity: bigint;
+  stockOpnameId: bigint;
+  revisionNumber: number;
+  approvalOperationId: string;
+  actorId: bigint;
+}) {
+  if (input.quantity === 0n) throw new StockServiceError("INVALID", "Adjustment kosong tidak membuat movement.");
+  const part = await lockSparePart(tx, input.sparePartId);
+  const unitCost = part.averageCost;
+  if (unitCost === null || unitCost <= 0n) throw new StockServiceError("STATE_CONFLICT", "Average Cost belum tersedia untuk adjustment.");
+  const movementType = input.quantity > 0n ? "ADJUSTMENT_IN" : "ADJUSTMENT_OUT";
+  return applyStockMovement(tx, {
+    sparePartId: input.sparePartId,
+    movementType,
+    quantity: input.quantity,
+    unitCost,
+    sourceType: "STOCK_OPNAME",
+    sourceId: input.stockOpnameId.toString(),
+    actorId: input.actorId,
+    sourceRevision: input.revisionNumber,
+    sourceOperation: input.approvalOperationId,
+  });
+}
+
 export async function recordOpeningStock(input: {
   sparePartId: bigint;
   quantity: bigint;
