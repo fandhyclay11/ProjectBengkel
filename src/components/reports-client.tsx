@@ -46,8 +46,8 @@ function GenericTable({ rows }: { rows: Row[] }) {
   return <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left">{keys.map((key) => <th key={key} className="px-3 py-2 font-semibold">{label(key)}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index} className="border-t">{keys.map((key) => <td key={key} className="whitespace-nowrap px-3 py-2">{text(row[key])}</td>)}</tr>)}</tbody></table></div>;
 }
 
-export function ReportsClient({ defaultFrom, defaultTo, workshopName, timezone }: { defaultFrom: string; defaultTo: string; workshopName: string; timezone: string }) {
-  const [report, setReport] = useState<ReportName>("services");
+export function ReportsClient({ defaultFrom, defaultTo, initialReport, workshopName, timezone }: { defaultFrom: string; defaultTo: string; initialReport?: string; workshopName: string; timezone: string }) {
+  const [report, setReport] = useState<ReportName>(reports.some((item) => item.id === initialReport) ? initialReport as ReportName : "services");
   const [from, setFrom] = useState(defaultFrom); const [to, setTo] = useState(defaultTo); const [page, setPage] = useState(1);
   const [data, setData] = useState<ReportData | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const load = async (nextPage = page) => { setBusy(true); setError(""); try { const response = await fetch(`/api/admin/reports/${report}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&page=${nextPage}&pageSize=25`, { cache: "no-store" }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "Laporan gagal dimuat."); setPage(nextPage); setData(result); } catch (reason) { setError((reason as Error).message); } finally { setBusy(false); } };

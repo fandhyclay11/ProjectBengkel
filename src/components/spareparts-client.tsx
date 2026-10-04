@@ -123,7 +123,7 @@ function AdminPartRow({ part, refresh, announce }: { part: AdminPart; refresh: (
   </tr>;
 }
 
-export function SparePartsClient({ role, initialParts }: { role: "ADMIN" | "USER"; initialParts: Part[] }) {
+export function SparePartsClient({ role, initialParts, initialFilter }: { role: "ADMIN" | "USER"; initialParts: Part[]; initialFilter?: string }) {
   const [parts, setParts] = useState<Part[]>(initialParts);
   const [name, setName] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
@@ -168,6 +168,7 @@ export function SparePartsClient({ role, initialParts }: { role: "ADMIN" | "USER
     }
   };
 
+  const visibleParts = parts.filter((part) => initialFilter === "low" ? isAdminPart(part) && BigInt(part.currentStock) <= BigInt(part.minimumStock) : initialFilter === "minus" ? isAdminPart(part) && BigInt(part.currentStock) < 0n : true);
   return <main className="mx-auto max-w-6xl p-6">
     <h1 className="text-2xl font-semibold">Sparepart</h1>
     <p className="mt-2 text-sm text-slate-600">Stok terlihat sesuai hak akses. Harga master dan data biaya hanya ditampilkan kepada Admin.</p>
@@ -188,9 +189,9 @@ export function SparePartsClient({ role, initialParts }: { role: "ADMIN" | "USER
           {admin && <><th className="px-3 py-2">Harga jual</th><th className="px-3 py-2">Harga beli terakhir</th></>}
           <th className="px-3 py-2">Stok kini</th>{admin && <><th className="px-3 py-2">Stok minimum</th><th className="px-3 py-2">Aksi</th></>}
         </tr></thead>
-        <tbody>{parts.map((part) => isAdminPart(part) ? <AdminPartRow key={part.id} part={part} refresh={refresh} announce={setMessage} /> : <tr key={part.id} className="border-t"><td className="px-3 py-3 font-mono">{part.code}</td><td className="px-3 py-3">{part.name}</td><td className="px-3 py-3">{part.currentStock}</td></tr>)}</tbody>
+        <tbody>{visibleParts.map((part) => isAdminPart(part) ? <AdminPartRow key={part.id} part={part} refresh={refresh} announce={setMessage} /> : <tr key={part.id} className="border-t"><td className="px-3 py-3 font-mono">{part.code}</td><td className="px-3 py-3">{part.name}</td><td className="px-3 py-3">{part.currentStock}</td></tr>)}</tbody>
       </table>
-      {!parts.length && <p className="p-4 text-slate-600">Belum ada sparepart.</p>}
+      {!visibleParts.length && <p className="p-4 text-slate-600">Belum ada sparepart pada filter ini.</p>}
     </div>}
   </main>;
 }
