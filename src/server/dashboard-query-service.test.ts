@@ -35,3 +35,18 @@ test("R6.3 stock boundaries classify equality as low and negative as minus", () 
   assert.deepEqual(classifyStock(-1n, 5n), { isLow: true, isMinus: true });
   assert.deepEqual(classifyStock(6n, 5n), { isLow: false, isMinus: false });
 });
+
+test("R6.3 keeps expense in selected period, excludes canceled expense, and replaces minus KPI", async () => {
+  const { getDashboard } = await import("@/server/dashboard-query-service");
+  const repository = {
+    service: { findMany: async () => [] }, sls: { findMany: async () => [] },
+    expense: { findMany: async () => [{ transactionAt: new Date("2026-10-01T04:00:00Z"), totalAmount: 125n }] },
+    purchase: { count: async ({ where }: { where: { status: string } }) => where.status === "DRAFT" ? 3 : 0 },
+    sparePart: { findMany: async () => [] },
+  } as never;
+  const result = await getDashboard("ADMIN", { preset: "custom", from: "2026-10-01", to: "2026-10-01" }, repository);
+  assert.equal(result.kpis.expenseTotal, "125");
+  assert.equal(result.kpis.netProfit, "-125");
+  assert.equal("minusStockCount" in result.kpis, false);
+  assert.equal("minusStockParts" in result.monitoring, false);
+});

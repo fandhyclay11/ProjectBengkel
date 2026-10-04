@@ -10,9 +10,9 @@ export type DashboardInput = { preset?: DashboardPreset; from?: string; to?: str
 export type DashboardBucket = { key: string; label: string; from: string; to: string; serviceRevenue: string; slsRevenue: string; totalRevenue: string; grossProfit?: string };
 export type DashboardResult = {
   period: { preset: DashboardPreset; from: string; to: string; timezone: string };
-  kpis: { serviceRevenue: string; slsRevenue: string; grossProfit: string; netProfit: string; serviceCount: number; slsCount: number; completedPurchaseCount: number; pendingPurchaseDraftCount: number; lowStockCount: number; minusStockCount: number };
+  kpis: { serviceRevenue: string; slsRevenue: string; grossProfit: string; netProfit: string; expenseTotal: string; serviceCount: number; slsCount: number; completedPurchaseCount: number; pendingPurchaseDraftCount: number; lowStockCount: number };
   charts: { revenue: DashboardBucket[]; grossProfit: Array<Pick<DashboardBucket, "key" | "label" | "from" | "to" | "grossProfit">> };
-  monitoring: { lowStockCount: number; minusStockCount: number; lowStockParts: DashboardPart[]; minusStockParts: DashboardPart[] };
+  monitoring: { lowStockCount: number; lowStockParts: DashboardPart[] };
 };
 export type DashboardPart = { id: string; code: string; name: string; currentStock: string; minimumStock: string; isLow: boolean; isMinus: boolean };
 type BucketValue = { key: string; label: string; from: string; to: string; serviceRevenue: bigint; slsRevenue: bigint; hpp: bigint };
@@ -74,6 +74,6 @@ export async function getDashboard(role: "ADMIN" | "USER", input: DashboardInput
   const grossProfit = serviceRevenue + slsRevenue - hpp; const netProfit = grossProfit - expense;
   const grouped = groupDashboardRows([...services.map((row) => ({ date: row.transactionAt, serviceRevenue: row.totalAmount, slsRevenue: 0n, hpp: row.totalHpp })), ...sls.map((row) => ({ date: row.transactionAt, serviceRevenue: 0n, slsRevenue: row.totalAmount, hpp: row.totalHpp }))], period.from, period.to);
   const monitoring = parts.map((part) => ({ id: part.id.toString(), code: part.code, name: part.name, currentStock: part.stockOnHand.toString(), minimumStock: part.minimumStock.toString(), ...classifyStock(part.stockOnHand, part.minimumStock) }));
-  const lowStockParts = monitoring.filter((part) => part.isLow); const minusStockParts = monitoring.filter((part) => part.isMinus);
-  return { period: { ...period, timezone: workshopTimezone() }, kpis: { serviceRevenue: money(serviceRevenue), slsRevenue: money(slsRevenue), grossProfit: money(grossProfit), netProfit: money(netProfit), serviceCount: services.length, slsCount: sls.length, completedPurchaseCount, pendingPurchaseDraftCount, lowStockCount: lowStockParts.length, minusStockCount: minusStockParts.length }, charts: { revenue: grouped.buckets, grossProfit: grouped.buckets.map(({ key, label, from, to, grossProfit: value }) => ({ key, label, from, to, grossProfit: value! })) }, monitoring: { lowStockCount: lowStockParts.length, minusStockCount: minusStockParts.length, lowStockParts, minusStockParts } };
+  const lowStockParts = monitoring.filter((part) => part.isLow);
+  return { period: { ...period, timezone: workshopTimezone() }, kpis: { serviceRevenue: money(serviceRevenue), slsRevenue: money(slsRevenue), grossProfit: money(grossProfit), netProfit: money(netProfit), expenseTotal: money(expense), serviceCount: services.length, slsCount: sls.length, completedPurchaseCount, pendingPurchaseDraftCount, lowStockCount: lowStockParts.length }, charts: { revenue: grouped.buckets, grossProfit: grouped.buckets.map(({ key, label, from, to, grossProfit: value }) => ({ key, label, from, to, grossProfit: value! })) }, monitoring: { lowStockCount: lowStockParts.length, lowStockParts } };
 }
