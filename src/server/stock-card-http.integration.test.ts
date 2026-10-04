@@ -20,10 +20,10 @@ function databaseUrlFor(source: string, database: string) {
   return url.toString();
 }
 
-async function waitForServer(server: ChildProcess) {
+async function waitForServer(server: ChildProcess, output: () => string) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    if (server.exitCode !== null) throw new Error(`Next.js test server exited with code ${server.exitCode}.`);
+    if (server.exitCode !== null) throw new Error(`Next.js test server exited with code ${server.exitCode}.\nNext.js output:\n${output()}`);
     try {
       await fetch(`${baseUrl}/api/auth/session`);
       return;
@@ -31,14 +31,14 @@ async function waitForServer(server: ChildProcess) {
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
-  throw new Error("Timed out waiting for the Next.js test server.");
+  throw new Error(`Timed out waiting for the Next.js test server.\nNext.js output:\n${output()}`);
 }
 
 async function stopServer(server: ChildProcess) {
   if (server.exitCode !== null) return;
   if (process.platform === "win32" && server.pid) {
     spawnSync("taskkill", ["/PID", String(server.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
-    return;
+    await new Promise<void>((resolve) => server.once("exit", () => resolve())); return;
   }
   server.kill("SIGTERM");
   await new Promise<void>((resolve) => server.once("exit", () => resolve()));
@@ -109,10 +109,10 @@ test("I2.5 movement endpoint allows Admin and denies USER over HTTP", async (t) 
 
     server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
       env: { ...process.env, NODE_ENV: "test", DATABASE_URL: testDatabaseUrl },
-      stdio: "ignore",
+      stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
-    await waitForServer(server);
+    let output = ""; server.stdout?.on("data", (chunk: Buffer) => { output += chunk.toString(); }); server.stderr?.on("data", (chunk: Buffer) => { output += chunk.toString(); }); await waitForServer(server, () => output);
 
     const adminCookies = await login(adminUsername, password);
     const adminResponse = await fetch(`${baseUrl}/api/admin/stock/movements?sparePartId=${partRow.rows[0]!.id}`, {

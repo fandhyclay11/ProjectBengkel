@@ -10,8 +10,8 @@ const port = 3198;
 const baseUrl = `http://localhost:${port}`;
 function quote(value: string) { if (!/^[A-Za-z0-9_]+$/.test(value)) throw new Error("Unsafe identifier"); return `"${value}"`; }
 function dbUrl(source: string, name: string) { const url = new URL(source); url.pathname = `/${name}`; return url.toString(); }
-async function waitForServer(server: ChildProcess) { const deadline = Date.now() + 30_000; while (Date.now() < deadline) { if (server.exitCode !== null) throw new Error("HTTP test server exited"); try { await fetch(`${baseUrl}/api/auth/session`); return; } catch { await new Promise((resolve) => setTimeout(resolve, 250)); } } throw new Error("HTTP test server timeout"); }
-async function stopServer(server: ChildProcess) { if (server.exitCode !== null) return; if (process.platform === "win32" && server.pid) { spawnSync("taskkill", ["/PID", String(server.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" }); return; } server.kill("SIGTERM"); await new Promise<void>((resolve) => server.once("exit", () => resolve())); }
+async function waitForServer(server: ChildProcess, output: () => string) { const deadline = Date.now() + 30_000; while (Date.now() < deadline) { if (server.exitCode !== null) throw new Error(`HTTP test server exited with ${server.exitCode}.\nNext.js output:\n${output()}`); try { await fetch(`${baseUrl}/api/auth/session`); return; } catch { await new Promise((resolve) => setTimeout(resolve, 250)); } } throw new Error(`HTTP test server timeout.\nNext.js output:\n${output()}`); }
+async function stopServer(server: ChildProcess) { if (server.exitCode !== null) return; if (process.platform === "win32" && server.pid) { spawnSync("taskkill", ["/PID", String(server.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" }); await new Promise<void>((resolve) => server.once("exit", () => resolve())); return; } server.kill("SIGTERM"); await new Promise<void>((resolve) => server.once("exit", () => resolve())); }
 function cookies(response: Response) { return response.headers.getSetCookie().map((value) => value.split(";", 1)[0]).join("; "); }
 async function login(username: string, password: string) { const response = await fetch(`${baseUrl}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username, password }) }); assert.equal(response.status, 200); const cookie = cookies(response); const session = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie } }); assert.equal(session.status, 200); const sessionBody = await session.json() as { csrfToken?: string }; assert.ok(sessionBody.csrfToken); return { cookie, csrf: sessionBody.csrfToken }; }
 
@@ -35,8 +35,8 @@ test("O3.1 HTTP preview and create use safe role DTOs and idempotent save", asyn
     const part = await fixture.query<{ id: string }>("INSERT INTO spare_parts(code, name, selling_price, latest_buy_price, average_cost, stock_on_hand, updated_at) VALUES ($1, $2, 2500, 2200, 1200, 4, CURRENT_TIMESTAMP) RETURNING id", [`SPO31${suffix}`, `O3.1 HTTP Part ${suffix}`]);
     await fixture.query("INSERT INTO stock_movements(spare_part_id, movement_type, quantity, unit_cost, valuation_delta, source_type, source_id, actor_id) VALUES ($1, 'OPENING_STOCK', 4, 1200, 4800, 'HTTP_TEST', $2, $3)", [part.rows[0]!.id, suffix, adminRow.rows[0]!.id]);
     await fixture.end();
-    server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], { env: { ...process.env, NODE_ENV: "test", DATABASE_URL: testUrl }, stdio: "ignore", windowsHide: true });
-    await waitForServer(server);
+    server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], { env: { ...process.env, NODE_ENV: "test", DATABASE_URL: testUrl }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    let output = ""; server.stdout?.on("data", (chunk: Buffer) => { output += chunk.toString(); }); server.stderr?.on("data", (chunk: Buffer) => { output += chunk.toString(); }); await waitForServer(server, () => output);
     const userSession = await login(`it_o31_user_${suffix}`, password);
     const userCookie = userSession.cookie;
     assert.equal(userSession.csrf, userCookie.match(/(?:^|; )pb_csrf=([^;]+)/)?.[1]);

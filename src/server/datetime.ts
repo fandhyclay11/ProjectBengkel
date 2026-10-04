@@ -7,6 +7,8 @@ function timezone() {
   return value;
 }
 
+export function workshopTimezone() { return timezone(); }
+
 type Parts = { year: number; month: number; day: number; hour: number; minute: number };
 
 export type WorkshopDateRange = { from: Date; toExclusive: Date; fromDate: string; toDate: string };
