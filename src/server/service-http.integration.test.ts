@@ -38,6 +38,7 @@ test("O3.1 HTTP preview and create use safe role DTOs and idempotent save", asyn
     server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], { env: { ...process.env, NODE_ENV: "test", DATABASE_URL: testUrl }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     let output = ""; server.stdout?.on("data", (chunk: Buffer) => { output += chunk.toString(); }); server.stderr?.on("data", (chunk: Buffer) => { output += chunk.toString(); }); await waitForServer(server, () => output);
     const userSession = await login(`it_o31_user_${suffix}`, password);
+    const adminSession = await login(`it_o31_admin_${suffix}`, password);
     const userCookie = userSession.cookie;
     assert.equal(userSession.csrf, userCookie.match(/(?:^|; )pb_csrf=([^;]+)/)?.[1]);
     const body = { transactionAt: "2026-09-30T10:15", vehicleDescription: "Test vehicle", discount: "500", jobs: [{ description: "Tune up", amount: "10000" }], items: [{ sparePartId: part.rows[0]!.id, quantity: "2", sellingPrice: "2000" }] };
@@ -46,6 +47,18 @@ test("O3.1 HTTP preview and create use safe role DTOs and idempotent save", asyn
     const preview = (await previewResponse.json()).preview;
     assert.equal(preview.totalAmount, "13500");
     assert.equal("totalHpp" in preview, false);
+    assert.equal("marginSparepart" in preview, false);
+    assert.equal("latestBuyPrice" in preview, false);
+    assert.equal("averageCost" in preview, false);
+    const adminPreviewResponse = await fetch(`${baseUrl}/api/services/preview`, { method: "POST", headers: { "content-type": "application/json", cookie: adminSession.cookie, origin: baseUrl, "x-csrf-token": adminSession.csrf }, body: JSON.stringify(body) });
+    assert.equal(adminPreviewResponse.status, 200);
+    const adminPreview = (await adminPreviewResponse.json()).preview;
+    assert.equal(adminPreview.marginSparepart, "-10");
+    assert.equal(adminPreview.items[0].marginPercent, "-10");
+    assert.equal(adminPreview.items[0].recommendedSellingPrice, "2500");
+    const zeroPreviewResponse = await fetch(`${baseUrl}/api/services/preview`, { method: "POST", headers: { "content-type": "application/json", cookie: adminSession.cookie, origin: baseUrl, "x-csrf-token": adminSession.csrf }, body: JSON.stringify({ ...body, discount: "14000" }) });
+    assert.equal(zeroPreviewResponse.status, 200);
+    assert.equal((await zeroPreviewResponse.json()).preview.marginTotalService, null);
     const key = `http-service-${suffix}`;
     const saveResponse = await fetch(`${baseUrl}/api/services`, { method: "POST", headers: { "content-type": "application/json", cookie: userCookie, origin: baseUrl, "x-csrf-token": userSession.csrf, "idempotency-key": key }, body: JSON.stringify(body) });
     const saveBody = await saveResponse.json() as { service?: Record<string, string> ; error?: string };
@@ -59,6 +72,11 @@ test("O3.1 HTTP preview and create use safe role DTOs and idempotent save", asyn
     const listResponse = await fetch(`${baseUrl}/api/services`, { headers: { cookie: userCookie } });
     assert.equal(listResponse.status, 200);
     assert.equal("totalHpp" in (await listResponse.json()).services[0], false);
+    const adminListResponse = await fetch(`${baseUrl}/api/services`, { headers: { cookie: adminSession.cookie } });
+    assert.equal(adminListResponse.status, 200);
+    const adminHistory = (await adminListResponse.json()).services.find((service: { id: string }) => service.id === saved.id);
+    assert.ok(adminHistory);
+    assert.equal(adminHistory.marginTotalService, "82");
   } finally {
     if (server) await stopServer(server);
     await admin.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()", [dbName]).catch(() => undefined);

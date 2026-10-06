@@ -51,7 +51,17 @@ async function readParts(repository: Prisma.TransactionClient | typeof prisma, i
   return parts as Part[];
 }
 
-function calculate(input: ServiceInput, parts: Part[], role: "ADMIN" | "USER") {
+function marginPercent(sellingPrice: bigint, latestBuyPrice: bigint | null) {
+  if (latestBuyPrice === null || sellingPrice === 0n) return null;
+  return ((sellingPrice - latestBuyPrice) * 100n / sellingPrice).toString();
+}
+
+function marginTotalPercent(totalAmount: bigint, totalHpp: bigint) {
+  if (totalAmount === 0n) return null;
+  return ((totalAmount - totalHpp) * 100n / totalAmount).toString();
+}
+
+function calculate(input: ServiceInput, parts: Part[], role: "ADMIN" | "USER", previewOnly = false) {
   const partById = new Map(parts.map((part) => [part.id.toString(), part]));
   const jobs = input.jobs.map((job, index) => ({ lineNumber: index + 1, description: job.description.trim(), amount: job.amount }));
   const items = input.items.map((item, index) => {
@@ -69,12 +79,17 @@ function calculate(input: ServiceInput, parts: Part[], role: "ADMIN" | "USER") {
   const totalAmount = subtotal - input.discount;
   const totalHpp = items.reduce((sum, item) => sum + item.lineHpp, 0n);
   if (subtotal > MAX_BIGINT || totalHpp > MAX_BIGINT || input.discount > subtotal || totalAmount < 0n) throw new ServiceServiceError("INVALID", "Subtotal, discount, atau total Service tidak valid.");
-  const sensitive = role === "ADMIN";
-  return {
+   const sensitive = role === "ADMIN";
+   const marginRevenue = items.reduce((sum, item) => sum + item.lineAmount, 0n);
+   const marginCost = items.every((item) => item.part.latestBuyPrice !== null)
+     ? items.reduce((sum, item) => sum + item.quantity * item.part.latestBuyPrice!, 0n)
+     : null;
+   const marginSparepart = marginCost === null ? null : marginPercent(marginRevenue, marginCost);
+   return {
     transactionAt: input.transactionAt.toISOString(), vehicleDescription: input.vehicleDescription?.trim() || null,
     jobs: jobs.map((job) => ({ lineNumber: job.lineNumber, description: job.description, amount: job.amount.toString() })),
-    items: items.map((item) => ({ sparePartId: item.part.id.toString(), lineNumber: item.lineNumber, code: item.part.code, name: item.part.name, quantity: item.quantity.toString(), sellingPrice: item.sellingPrice.toString(), lineAmount: item.lineAmount.toString(), ...(sensitive ? { unitHppSnapshot: item.unitHppSnapshot.toString(), lineHpp: item.lineHpp.toString(), belowLatestBuyPrice: item.belowLatestBuyPrice } : { belowLatestBuyPrice: item.belowLatestBuyPrice }) })),
-    subtotal: subtotal.toString(), discount: input.discount.toString(), totalAmount: totalAmount.toString(), ...(sensitive ? { totalHpp: totalHpp.toString() } : {}),
+     items: items.map((item) => ({ sparePartId: item.part.id.toString(), lineNumber: item.lineNumber, code: item.part.code, name: item.part.name, quantity: item.quantity.toString(), sellingPrice: item.sellingPrice.toString(), lineAmount: item.lineAmount.toString(), ...(sensitive ? { unitHppSnapshot: item.unitHppSnapshot.toString(), lineHpp: item.lineHpp.toString(), belowLatestBuyPrice: item.belowLatestBuyPrice } : { belowLatestBuyPrice: item.belowLatestBuyPrice }), ...(sensitive && previewOnly ? { recommendedSellingPrice: item.part.sellingPrice.toString(), marginPercent: marginPercent(item.sellingPrice, item.part.latestBuyPrice) } : {}) })),
+     subtotal: subtotal.toString(), discount: input.discount.toString(), totalAmount: totalAmount.toString(), ...(sensitive ? { totalHpp: totalHpp.toString() } : {}), ...(sensitive && previewOnly ? { marginSparepart: marginSparepart, marginTotalService: marginTotalPercent(totalAmount, totalHpp) } : {}),
   };
 }
 
@@ -99,7 +114,7 @@ function mapService(row: { id: bigint; serviceNumber: string; transactionAt: Dat
     id: row.id.toString(), serviceNumber: row.serviceNumber, transactionAt: row.transactionAt.toISOString(), transactionInput: workshopDateTimeInput(row.transactionAt), transactionDisplay: workshopDateTimeDisplay(row.transactionAt), vehicleDescription: row.vehicleDescription, status: row.status, ...(role === "ADMIN" ? { editCount: row.editCount } : {}),
     jobs: [...row.jobs].sort((a, b) => a.lineNumber - b.lineNumber).map((job) => ({ lineNumber: job.lineNumber, description: job.description, amount: job.amount.toString() })),
     items: [...row.items].sort((a, b) => a.lineNumber - b.lineNumber).map((item) => ({ sparePartId: item.sparePartId.toString(), lineNumber: item.lineNumber, code: item.partCodeSnapshot, name: item.partNameSnapshot, quantity: item.quantity.toString(), sellingPrice: item.sellingPrice.toString(), lineAmount: item.lineAmount.toString(), ...(role === "ADMIN" ? { unitHppSnapshot: item.unitHppSnapshot.toString(), lineHpp: item.lineHpp.toString() } : {}) })),
-    subtotal: row.subtotal.toString(), discount: row.discount.toString(), totalAmount: row.totalAmount.toString(), ...(role === "ADMIN" ? { totalHpp: row.totalHpp.toString(), createdById: row.createdById.toString() } : {}),
+    subtotal: row.subtotal.toString(), discount: row.discount.toString(), totalAmount: row.totalAmount.toString(), ...(role === "ADMIN" ? { totalHpp: row.totalHpp.toString(), marginTotalService: marginTotalPercent(row.totalAmount, row.totalHpp), createdById: row.createdById.toString() } : {}),
   };
 }
 
@@ -116,7 +131,7 @@ function auditServiceValues(service: { serviceNumber: string; transactionAt: Dat
 export async function previewService(input: ServiceInput, role: "ADMIN" | "USER", transaction?: Prisma.TransactionClient) {
   validateInput(input);
   const parts = await readParts(transaction ?? prisma, input.items);
-  return calculate(input, parts, role);
+  return calculate(input, parts, role, true);
 }
 
 export async function createService(input: ServiceInput, actor: Actor, key: string, role: "ADMIN" | "USER", transaction?: Prisma.TransactionClient) {
