@@ -10,6 +10,6 @@ export default async function ServicesPage() {
   if (!session) redirect("/");
   if (session.user.mustChangePassword) redirect("/ganti-password");
   const services = await listServices(session.user.role);
-  const spareparts = await listSpareParts(session.user.role);
+  const spareparts = (await listSpareParts(session.user.role)).filter((part) => !('isActive' in part) || part.isActive);
   return <ServicesClient role={session.user.role} initialServices={services} spareparts={spareparts} defaultDateTime={workshopDateTimeInput(new Date())} />;
 }

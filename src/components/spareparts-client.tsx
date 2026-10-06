@@ -7,6 +7,9 @@ type UserPart = { id: string; code: string; name: string; currentStock: string }
 type Part = AdminPart | UserPart;
 const isAdminPart = (part: Part): part is AdminPart => "sellingPrice" in part;
 const formatMoney = (value: string) => `Rp${BigInt(value).toLocaleString("id-ID")}`;
+const formatMargin = (part: AdminPart) => part.latestBuyPrice === null || BigInt(part.sellingPrice) === 0n
+  ? "—"
+  : `${((BigInt(part.sellingPrice) - BigInt(part.latestBuyPrice)) * 100n / BigInt(part.sellingPrice)).toString()}%`;
 
 function csrfToken() {
   return document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("pb_csrf="))?.slice("pb_csrf=".length) ?? "";
@@ -54,7 +57,8 @@ function AdminPartRow({ part, refresh, announce }: { part: AdminPart; refresh: (
       if (err.similarParts?.length) {
         const candidates = err.similarParts.map((item) => `${item.code} — ${item.name}`).join("\n");
         if (window.confirm(`${err.message}\n\n${candidates}\n\nLanjutkan perubahan nama ini?`)) await save(true);
-      } else announce(err.message);
+      } else if (err.message === "Nama sparepart tersebut sudah digunakan.") announce(`Nama sparepart "${name.trim()}" sudah digunakan. Silakan gunakan nama lain.`);
+      else announce(err.message);
     } finally {
       setSaving(false);
     }
@@ -99,6 +103,8 @@ function AdminPartRow({ part, refresh, announce }: { part: AdminPart; refresh: (
     </td>
     <td className="px-3 py-3">{formatMoney(part.sellingPrice)}</td>
     <td className="px-3 py-3">{part.latestBuyPrice ? formatMoney(part.latestBuyPrice) : "Belum ada Purchase"}</td>
+    <td className="px-3 py-3">{part.averageCost ? formatMoney(part.averageCost) : "—"}</td>
+    <td className="px-3 py-3">{formatMargin(part)}</td>
     <td className="px-3 py-3">{part.currentStock}</td>
     <td className="px-3 py-3">{part.minimumStock}</td>
     <td className="px-3 py-3"><div className="flex flex-wrap gap-2">
@@ -162,7 +168,8 @@ export function SparePartsClient({ role, initialParts, initialFilter }: { role: 
       if (err.similarParts?.length) {
         const candidates = err.similarParts.map((item) => `${item.code} — ${item.name}`).join("\n");
         if (window.confirm(`${err.message}\n\n${candidates}\n\nTetap tambahkan sparepart ini?`)) await create(true);
-      } else setMessage(err.message);
+      } else if (err.message === "Nama sparepart tersebut sudah digunakan.") setMessage(`Nama sparepart "${name.trim()}" sudah digunakan. Silakan gunakan nama lain.`);
+      else setMessage(err.message);
     } finally {
       setCreating(false);
     }
@@ -186,7 +193,7 @@ export function SparePartsClient({ role, initialParts, initialFilter }: { role: 
       <table className="w-full min-w-[800px] text-left text-sm">
         <thead className="bg-slate-100"><tr>
           <th className="px-3 py-2">Kode</th><th className="px-3 py-2">Nama</th>
-          {admin && <><th className="px-3 py-2">Harga jual</th><th className="px-3 py-2">Harga beli terakhir</th></>}
+           {admin && <><th className="px-3 py-2">Harga jual</th><th className="px-3 py-2">Harga beli terakhir</th><th className="px-3 py-2">HPP Average</th><th className="px-3 py-2">Margin</th></>}
           <th className="px-3 py-2">Stok kini</th>{admin && <><th className="px-3 py-2">Stok minimum</th><th className="px-3 py-2">Aksi</th></>}
         </tr></thead>
         <tbody>{visibleParts.map((part) => isAdminPart(part) ? <AdminPartRow key={part.id} part={part} refresh={refresh} announce={setMessage} /> : <tr key={part.id} className="border-t"><td className="px-3 py-3 font-mono">{part.code}</td><td className="px-3 py-3">{part.name}</td><td className="px-3 py-3">{part.currentStock}</td></tr>)}</tbody>
