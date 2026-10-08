@@ -18,20 +18,24 @@ test("S4.1 captures all parts, supports partial recheck, and finalizes without s
     await prisma.$transaction(async (tx) => {
       const [sequence] = await tx.$queryRaw<Array<{ value: bigint }>>`SELECT nextval('sparepart_code_seq') AS value`;
       const active = await tx.sparePart.create({ data: { code: `S41A${sequence!.value}`, name: `S41 Active ${suffix}`, sellingPrice: 1000n } });
-      const inactive = await tx.sparePart.create({ data: { code: `S41I${sequence!.value}`, name: `S41 Inactive ${suffix}`, sellingPrice: 1000n, isActive: false, deletedAt: new Date() } });
+      const inactive = await tx.sparePart.create({ data: { code: `S41I${sequence!.value}`, name: `S41 Inactive ${suffix}`, sellingPrice: 1000n, isActive: false } });
+      const deleted = await tx.sparePart.create({ data: { code: `S41D${sequence!.value}`, name: `S41 Deleted ${suffix}`, sellingPrice: 1000n, isActive: false, deletedAt: new Date() } });
       await applyStockMovement(tx, { sparePartId: active.id, movementType: "OPENING_STOCK", quantity: 5n, unitCost: 100n, sourceType: "TEST", sourceId: suffix, actorId: user.id });
       const beforeActive = await tx.sparePart.findUniqueOrThrow({ where: { id: active.id } });
       const beforeInactive = await tx.sparePart.findUniqueOrThrow({ where: { id: inactive.id } });
-      const partCountBeforeOpname = await tx.sparePart.count();
+      const partCountBeforeOpname = await tx.sparePart.count({ where: { deletedAt: null } });
       const created = await createStockOpname({ transactionAt: parseWorkshopDateTime("2026-10-01T10:00") }, actor, `s41-create-${suffix}`, "USER", tx);
       assert.equal(created.status, "REVISION");
       assert.equal(created.items.length, partCountBeforeOpname);
       assert.ok(created.items.some((item) => item.sparePartId === active.id.toString()));
       assert.ok(created.items.some((item) => item.sparePartId === inactive.id.toString()));
+      assert.equal(created.items.some((item) => item.sparePartId === deleted.id.toString()), false);
       const newPart = await tx.sparePart.create({ data: { code: `S41N${sequence!.value}`, name: `S41 New ${suffix}`, sellingPrice: 1000n } });
+      await tx.sparePart.update({ where: { id: active.id }, data: { isActive: false, deletedAt: new Date() } });
       const partial = await recheckStockOpname(BigInt(created.id), { transactionAt: parseWorkshopDateTime("2026-10-01T11:00"), items: [{ sparePartId: active.id, physicalStock: 0n }] }, actor, `s41-recheck-${suffix}`, "USER", tx);
       assert.equal(partial.items.find((item) => item.sparePartId === active.id.toString())!.difference, "-5");
       assert.equal(partial.items.find((item) => item.sparePartId === inactive.id.toString())!.physicalStock, null);
+      assert.ok(partial.items.some((item) => item.sparePartId === active.id.toString()), "historical item remains after its sparepart is removed from the list");
       assert.equal(partial.items.some((item) => item.sparePartId === newPart.id.toString()), false);
       const auditsBeforeNoop = await tx.auditLog.count({ where: { objectType: "STOCK_OPNAME", objectId: created.id } });
       await recheckStockOpname(BigInt(created.id), { transactionAt: parseWorkshopDateTime("2026-10-01T11:00"), items: [{ sparePartId: active.id, physicalStock: 0n }] }, actor, `s41-noop-${suffix}`, "USER", tx);

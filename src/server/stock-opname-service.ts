@@ -46,9 +46,9 @@ function parsePhysical(value: bigint | null) {
 export async function createStockOpname(input: StockOpnameInput, actor: Actor, key: string, role: "ADMIN" | "USER", transaction?: Prisma.TransactionClient) {
   validateDate(input.transactionAt);
   try { return await executeIdempotent({ actor, operation: "stock-opname.create", key, transaction, payload: { transactionAt: input.transactionAt.toISOString() }, run: async (tx) => {
-    const parts = await tx.sparePart.findMany({ orderBy: { id: "asc" }, select: { id: true, code: true, name: true, stockOnHand: true, stockVersion: true } });
+    const parts = await tx.sparePart.findMany({ where: { deletedAt: null }, orderBy: { id: "asc" }, select: { id: true, code: true, name: true, stockOnHand: true, stockVersion: true } });
     for (const part of parts) await tx.$queryRaw`SELECT id FROM spare_parts WHERE id = ${part.id} FOR UPDATE`;
-    const lockedParts = parts.length ? await tx.sparePart.findMany({ where: { id: { in: parts.map((part) => part.id) } }, orderBy: { id: "asc" }, select: { id: true, code: true, name: true, stockOnHand: true, stockVersion: true } }) : [];
+    const lockedParts = parts.length ? await tx.sparePart.findMany({ where: { id: { in: parts.map((part) => part.id) }, deletedAt: null }, orderBy: { id: "asc" }, select: { id: true, code: true, name: true, stockOnHand: true, stockVersion: true } }) : [];
     const created = await tx.stockOpname.create({ data: { opnameNumber: await nextNumber(tx, input.transactionAt), transactionAt: input.transactionAt, status: "REVISION", createdById: actor.id, items: { create: lockedParts.map((part, index) => ({ lineNumber: index + 1, sparePartId: part.id, partCodeSnapshot: part.code, partNameSnapshot: part.name, systemStock: part.stockOnHand, capturedStockVersion: part.stockVersion, verifiedSystemStock: part.stockOnHand, verifiedStockVersion: part.stockVersion })) } }, include });
     const result = mapOpname(created, role);
     await writeAudit(tx, { actorId: actor.id, actorUsername: actor.username, action: "STOCK_OPNAME_CREATED", objectType: "STOCK_OPNAME", objectId: created.id.toString(), beforeAfter: { after: result } });
