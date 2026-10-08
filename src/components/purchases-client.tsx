@@ -16,10 +16,12 @@ async function mutate(url: string, method: string, body?: unknown, key = crypto.
 }
 
 export function PurchasesClient({ role, initialPurchases, spareparts, defaultDateTime }: { role: "ADMIN" | "USER"; initialPurchases: Purchase[]; spareparts: Part[]; defaultDateTime: string }) {
+  const activeSpareparts = spareparts.filter((part) => part.isActive === true);
   const [purchases, setPurchases] = useState(initialPurchases);
   const [dateTime, setDateTime] = useState(defaultDateTime);
   const [supplier, setSupplier] = useState("");
-  const [items, setItems] = useState<PurchaseItem[]>([{ sparePartId: spareparts[0]?.id ?? "", quantity: "1", unitBuyPrice: "" }]);
+  const [items, setItems] = useState<PurchaseItem[]>([{ sparePartId: activeSpareparts[0]?.id ?? "", quantity: "1", unitBuyPrice: "" }]);
+  const [partSearch, setPartSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingMode, setEditingMode] = useState<"DRAFT" | "COMPLETED" | null>(null);
   const [reason, setReason] = useState("");
@@ -27,6 +29,9 @@ export function PurchasesClient({ role, initialPurchases, spareparts, defaultDat
   const [notice, setNotice] = useState("");
   const saveKey = useRef<string | null>(null);
   const admin = role === "ADMIN";
+  const searchTerm = partSearch.trim().toLocaleLowerCase("id-ID");
+  const matchesSearch = (part: Part) => !searchTerm || part.code.toLocaleLowerCase("id-ID").includes(searchTerm) || part.name.toLocaleLowerCase("id-ID").includes(searchTerm);
+  const optionsFor = (selectedId: string, rowIndex: number) => activeSpareparts.filter((part) => part.id === selectedId || (!items.some((other, otherIndex) => otherIndex !== rowIndex && other.sparePartId === part.id) && matchesSearch(part)));
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/purchases", { cache: "no-store" });
@@ -36,7 +41,8 @@ export function PurchasesClient({ role, initialPurchases, spareparts, defaultDat
 
   const resetForm = () => {
     setEditingId(null); setEditingMode(null); setReason(""); setDateTime(defaultDateTime); setSupplier("");
-    setItems([{ sparePartId: spareparts[0]?.id ?? "", quantity: "1", unitBuyPrice: "" }]);
+    setItems([{ sparePartId: activeSpareparts[0]?.id ?? "", quantity: "1", unitBuyPrice: "" }]);
+    setPartSearch("");
     saveKey.current = null;
   };
 
@@ -107,19 +113,21 @@ export function PurchasesClient({ role, initialPurchases, spareparts, defaultDat
         <label className="grid gap-1 text-sm">Tanggal dan waktu<input className="rounded border px-3 py-2" type="datetime-local" value={dateTime} onChange={(e) => setDateTime(e.target.value)} /></label>
         <label className="grid gap-1 text-sm">Supplier<input className="rounded border px-3 py-2" value={supplier} onChange={(e) => setSupplier(e.target.value)} /></label>
       </div>
-      {editingMode === "COMPLETED" && <label className="mt-3 grid gap-1 text-sm">Alasan perubahan (wajib kecuali supplier saja)<textarea className="rounded border px-3 py-2" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} /> </label>}
-      <div className="mt-4 space-y-3">
-        {items.map((item, index) => <div key={index} className="grid gap-2 rounded border p-3 md:grid-cols-[2fr_1fr_1fr_auto]">
-          <label className="grid gap-1 text-sm">Sparepart<select className="rounded border px-2 py-2" value={item.sparePartId} onChange={(e) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, sparePartId: e.target.value } : row))}>
-            <option value="">Pilih sparepart</option>{spareparts.filter((part) => part.isActive).map((part) => <option key={part.id} value={part.id}>{part.code} — {part.name}</option>)}
-          </select></label>
+       {editingMode === "COMPLETED" && <label className="mt-3 grid gap-1 text-sm">Alasan perubahan (wajib kecuali supplier saja)<textarea className="rounded border px-3 py-2" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} /> </label>}
+       <div className="mt-4 space-y-3">
+         <label className="grid gap-1 text-sm">Cari sparepart<input className="rounded border px-3 py-2" placeholder="Cari berdasarkan kode atau nama" value={partSearch} onChange={(e) => setPartSearch(e.target.value)} /></label>
+         {searchTerm && !activeSpareparts.some(matchesSearch) && <p className="text-sm text-slate-600">Tidak ada sparepart yang cocok dengan pencarian.</p>}
+         {items.map((item, index) => <div key={index} className="grid gap-2 rounded border p-3 md:grid-cols-[2fr_1fr_1fr_auto]">
+           <label className="grid gap-1 text-sm">Sparepart<select className="rounded border px-2 py-2" value={item.sparePartId} onChange={(e) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, sparePartId: e.target.value } : row))}>
+             <option value="">Pilih sparepart</option>{optionsFor(item.sparePartId, index).map((part) => <option key={part.id} value={part.id}>{part.code} — {part.name}</option>)}
+           </select>{activeSpareparts.find((part) => part.id === item.sparePartId) && <span className="text-xs text-slate-600">Harga beli terakhir: {activeSpareparts.find((part) => part.id === item.sparePartId)?.latestBuyPrice ? money(activeSpareparts.find((part) => part.id === item.sparePartId)!.latestBuyPrice!) : "—"}</span>}</label>
           <label className="grid gap-1 text-sm">Jumlah (pcs)<input className="rounded border px-2 py-2" inputMode="numeric" value={item.quantity} onChange={(e) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: e.target.value } : row))} /></label>
           <label className="grid gap-1 text-sm">Harga beli per barang (Rp)<input className="rounded border px-2 py-2" inputMode="numeric" value={item.unitBuyPrice} onChange={(e) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, unitBuyPrice: e.target.value } : row))} /></label>
           <button disabled={editingMode !== "COMPLETED" && items.length <= 1} className="self-end rounded border px-3 py-2 disabled:opacity-50" onClick={() => setItems((old) => old.filter((_, rowIndex) => rowIndex !== index))}>Hapus item</button>
         </div>)}
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className="rounded border px-3 py-2" onClick={() => setItems((old) => [...old, { sparePartId: spareparts[0]?.id ?? "", quantity: "1", unitBuyPrice: "" }])}>Tambah item</button>
+         <button className="rounded border px-3 py-2" onClick={() => setItems((old) => [...old, { sparePartId: activeSpareparts.find((part) => !old.some((item) => item.sparePartId === part.id))?.id ?? "", quantity: "1", unitBuyPrice: "" }])}>Tambah item</button>
         <button disabled={saving || (editingMode !== "COMPLETED" && !items.length)} className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={() => void saveDraft()}>{saving ? "Menyimpan…" : editingMode === "COMPLETED" ? "Simpan Perubahan" : editingId ? "Simpan Draft" : "Buat Draft"}</button>
         {editingId && <button className="rounded border px-4 py-2" onClick={resetForm}>Batal</button>}
       </div>
