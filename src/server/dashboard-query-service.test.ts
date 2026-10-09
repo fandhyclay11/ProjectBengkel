@@ -36,17 +36,24 @@ test("R6.3 stock boundaries classify equality as low and negative as minus", () 
   assert.deepEqual(classifyStock(6n, 5n), { isLow: false, isMinus: false });
 });
 
-test("R6.3 keeps expense in selected period, excludes canceled expense, and replaces minus KPI", async () => {
+test("R6.3 calculates historical HPP and current inventory value without changing profit formulas", async () => {
   const { getDashboard } = await import("@/server/dashboard-query-service");
   const repository = {
-    service: { findMany: async () => [] }, sls: { findMany: async () => [] },
+    service: { findMany: async ({ where }: { where: { transactionAt: { gte: Date; lt: Date } } }) => where.transactionAt.gte < new Date("2026-10-01T00:00:00Z") ? [{ transactionAt: new Date("2026-10-01T04:00:00Z"), totalAmount: 1000n, totalHpp: 300n }] : [] },
+    sls: { findMany: async ({ where }: { where: { transactionAt: { gte: Date; lt: Date } } }) => where.transactionAt.gte < new Date("2026-10-01T00:00:00Z") ? [{ transactionAt: new Date("2026-10-01T05:00:00Z"), totalAmount: 500n, totalHpp: 200n }] : [] },
     expense: { findMany: async () => [{ transactionAt: new Date("2026-10-01T04:00:00Z"), totalAmount: 125n }] },
     purchase: { count: async ({ where }: { where: { status: string } }) => where.status === "DRAFT" ? 3 : 0 },
-    sparePart: { findMany: async () => [] },
+    sparePart: { findMany: async ({ where }: { where?: { isActive?: boolean } }) => where?.isActive ? [] : [{ stockOnHand: 4n, averageCost: 100n }, { stockOnHand: 3n, averageCost: null }, { stockOnHand: 2n, averageCost: 50n }] },
   } as never;
   const result = await getDashboard("ADMIN", { preset: "custom", from: "2026-10-01", to: "2026-10-01" }, repository);
   assert.equal(result.kpis.expenseTotal, "125");
-  assert.equal(result.kpis.netProfit, "-125");
+  assert.equal(result.kpis.hppPenjualan, "500");
+  assert.equal(result.kpis.grossProfit, "1000");
+  assert.equal(result.kpis.netProfit, "875");
+  assert.equal(result.kpis.inventoryValue, "500");
+  const otherPeriod = await getDashboard("ADMIN", { preset: "custom", from: "2026-10-02", to: "2026-10-02" }, repository);
+  assert.equal(otherPeriod.kpis.hppPenjualan, "0");
+  assert.equal(otherPeriod.kpis.inventoryValue, "500");
   assert.equal("minusStockCount" in result.kpis, false);
   assert.equal("minusStockParts" in result.monitoring, false);
 });

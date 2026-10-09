@@ -10,7 +10,7 @@ export type DashboardInput = { preset?: DashboardPreset; from?: string; to?: str
 export type DashboardBucket = { key: string; label: string; from: string; to: string; serviceRevenue: string; slsRevenue: string; totalRevenue: string; grossProfit?: string };
 export type DashboardResult = {
   period: { preset: DashboardPreset; from: string; to: string; timezone: string };
-  kpis: { serviceRevenue: string; slsRevenue: string; grossProfit: string; netProfit: string; expenseTotal: string; serviceCount: number; slsCount: number; completedPurchaseCount: number; pendingPurchaseDraftCount: number; lowStockCount: number };
+  kpis: { serviceRevenue: string; slsRevenue: string; hppPenjualan: string; grossProfit: string; netProfit: string; expenseTotal: string; inventoryValue: string; serviceCount: number; slsCount: number; completedPurchaseCount: number; pendingPurchaseDraftCount: number; lowStockCount: number };
   charts: { revenue: DashboardBucket[]; grossProfit: Array<Pick<DashboardBucket, "key" | "label" | "from" | "to" | "grossProfit">> };
   monitoring: { lowStockCount: number; lowStockParts: DashboardPart[] };
 };
@@ -62,18 +62,20 @@ export function groupDashboardRows(rows: Array<{ date: Date; serviceRevenue: big
 export async function getDashboard(role: "ADMIN" | "USER", input: DashboardInput, repository: Repository = prisma): Promise<DashboardResult> {
   if (role !== "ADMIN") throw new ReportQueryError("FORBIDDEN", "Akses Dashboard ditolak.");
   const period = resolveDashboardPeriod(input); const dates: WorkshopDateRange = workshopDateRange(period.from, period.to);
-  const [services, sls, expenses, completedPurchaseCount, pendingPurchaseDraftCount, parts] = await Promise.all([
+  const [services, sls, expenses, completedPurchaseCount, pendingPurchaseDraftCount, parts, inventoryParts] = await Promise.all([
     repository.service.findMany({ where: { status: "COMPLETED", transactionAt: { gte: dates.from, lt: dates.toExclusive } }, select: { transactionAt: true, totalAmount: true, totalHpp: true } }),
     repository.sls.findMany({ where: { status: "COMPLETED", transactionAt: { gte: dates.from, lt: dates.toExclusive } }, select: { transactionAt: true, totalAmount: true, totalHpp: true } }),
     repository.expense.findMany({ where: { status: "COMPLETED", transactionAt: { gte: dates.from, lt: dates.toExclusive } }, select: { transactionAt: true, totalAmount: true } }),
     repository.purchase.count({ where: { status: "COMPLETED", transactionAt: { gte: dates.from, lt: dates.toExclusive } } }),
     repository.purchase.count({ where: { status: "DRAFT" } }),
     repository.sparePart.findMany({ where: { isActive: true, deletedAt: null }, select: { id: true, code: true, name: true, stockOnHand: true, minimumStock: true }, orderBy: [{ name: "asc" }, { id: "asc" }] }),
+    repository.sparePart.findMany({ select: { stockOnHand: true, averageCost: true } }),
   ]);
   const serviceRevenue = sum(services.map((row) => row.totalAmount)); const slsRevenue = sum(sls.map((row) => row.totalAmount)); const hpp = sum(services.map((row) => row.totalHpp)) + sum(sls.map((row) => row.totalHpp)); const expense = sum(expenses.map((row) => row.totalAmount));
+  const inventoryValue = sum(inventoryParts.map((part) => part.stockOnHand * (part.averageCost ?? 0n)));
   const grossProfit = serviceRevenue + slsRevenue - hpp; const netProfit = grossProfit - expense;
   const grouped = groupDashboardRows([...services.map((row) => ({ date: row.transactionAt, serviceRevenue: row.totalAmount, slsRevenue: 0n, hpp: row.totalHpp })), ...sls.map((row) => ({ date: row.transactionAt, serviceRevenue: 0n, slsRevenue: row.totalAmount, hpp: row.totalHpp }))], period.from, period.to);
   const monitoring = parts.map((part) => ({ id: part.id.toString(), code: part.code, name: part.name, currentStock: part.stockOnHand.toString(), minimumStock: part.minimumStock.toString(), ...classifyStock(part.stockOnHand, part.minimumStock) }));
   const lowStockParts = monitoring.filter((part) => part.isLow);
-  return { period: { ...period, timezone: workshopTimezone() }, kpis: { serviceRevenue: money(serviceRevenue), slsRevenue: money(slsRevenue), grossProfit: money(grossProfit), netProfit: money(netProfit), expenseTotal: money(expense), serviceCount: services.length, slsCount: sls.length, completedPurchaseCount, pendingPurchaseDraftCount, lowStockCount: lowStockParts.length }, charts: { revenue: grouped.buckets, grossProfit: grouped.buckets.map(({ key, label, from, to, grossProfit: value }) => ({ key, label, from, to, grossProfit: value! })) }, monitoring: { lowStockCount: lowStockParts.length, lowStockParts } };
+  return { period: { ...period, timezone: workshopTimezone() }, kpis: { serviceRevenue: money(serviceRevenue), slsRevenue: money(slsRevenue), hppPenjualan: money(hpp), grossProfit: money(grossProfit), netProfit: money(netProfit), expenseTotal: money(expense), inventoryValue: money(inventoryValue), serviceCount: services.length, slsCount: sls.length, completedPurchaseCount, pendingPurchaseDraftCount, lowStockCount: lowStockParts.length }, charts: { revenue: grouped.buckets, grossProfit: grouped.buckets.map(({ key, label, from, to, grossProfit: value }) => ({ key, label, from, to, grossProfit: value! })) }, monitoring: { lowStockCount: lowStockParts.length, lowStockParts } };
 }
