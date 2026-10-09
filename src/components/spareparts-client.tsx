@@ -85,7 +85,7 @@ function AdminPartRow({ part, refresh, announce }: { part: AdminPart; refresh: (
   };
 
   const remove = async () => {
-    if (!window.confirm(`Keluarkan ${part.name} dari daftar aktif? Histori tetap disimpan.`)) return;
+    if (!window.confirm(`Keluarkan ${part.name} dari daftar aktif? Seluruh sisa stok akan dikeluarkan dari inventory dan Nilai Persediaan akan berkurang sesuai Average Cost. Histori tetap disimpan.`)) return;
     setPendingAction(true);
     try { await send(`/api/spareparts/${part.id}`, "DELETE"); await refresh(); }
     catch (error) { announce((error as Error).message); }

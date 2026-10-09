@@ -16,7 +16,7 @@ export class StockServiceError extends Error {
 }
 
 const inbound = new Set<StockMovementType>(["OPENING_STOCK", "PURCHASE_RECEIPT", "ADJUSTMENT_IN"]);
-const outbound = new Set<StockMovementType>(["SERVICE_ISSUE", "SLS_ISSUE", "ADJUSTMENT_OUT"]);
+const outbound = new Set<StockMovementType>(["SERVICE_ISSUE", "SLS_ISSUE", "ADJUSTMENT_OUT", "DELETE"]);
 
 function roundedAverage(numerator: bigint, denominator: bigint) {
   if (denominator <= 0n) throw new StockServiceError("INVALID", "Jumlah stok untuk perhitungan biaya tidak valid.");
@@ -40,6 +40,7 @@ export async function applyStockMovement(tx: Prisma.TransactionClient, input: {
   reversalOfId?: bigint;
   sourceRevision?: number;
   sourceOperation?: string;
+  clearAverageCostWhenEmpty?: boolean;
 }) {
   if (input.quantity === 0n || input.quantity < MIN_BIGINT || input.quantity > MAX_BIGINT || input.sourceType.length > 80 || input.sourceId.length > 200) {
     throw new StockServiceError("INVALID", "Data pergerakan stok tidak valid.");
@@ -79,6 +80,7 @@ export async function applyStockMovement(tx: Prisma.TransactionClient, input: {
     const currentCost = part.averageCost;
     if (currentCost === null) throw new StockServiceError("STATE_CONFLICT", "Average Cost belum tersedia untuk stok yang akan dikeluarkan.");
     movementUnitCost = input.unitCost ?? currentCost;
+    if (input.clearAverageCostWhenEmpty && newStock === 0n) nextAverageCost = null;
   }
 
   const afterValue = newStock * (nextAverageCost ?? 0n);
@@ -92,7 +94,7 @@ export async function applyStockMovement(tx: Prisma.TransactionClient, input: {
     data: {
       stockOnHand: { increment: input.quantity },
       stockVersion: { increment: 1n },
-      ...(input.quantity > 0n ? { averageCost: nextAverageCost! } : {}),
+      ...((input.quantity > 0n || input.clearAverageCostWhenEmpty) ? { averageCost: nextAverageCost } : {}),
     },
   });
   const movement = await tx.stockMovement.create({
@@ -120,6 +122,32 @@ export async function applyStockMovement(tx: Prisma.TransactionClient, input: {
     averageCost: nextAverageCost,
     unitCost: movementUnitCost,
   };
+}
+
+export async function applySparePartDeletion(tx: Prisma.TransactionClient, input: { sparePartId: bigint; sourceId: string; actorId: bigint }) {
+  const part = await lockSparePart(tx, input.sparePartId);
+  if (part.deletedAt) throw new StockServiceError("NOT_FOUND", "Sparepart tidak ditemukan.");
+  const stockBefore = part.stockOnHand;
+  const averageCostBefore = part.averageCost;
+  if (stockBefore === 0n) {
+    if (part.averageCost !== null) {
+      await tx.sparePart.update({ where: { id: part.id }, data: { averageCost: null, stockVersion: { increment: 1n } } });
+    }
+    return { stockBefore, averageCostBefore, movement: null, currentStock: 0n, averageCost: null };
+  }
+  if (averageCostBefore === null) throw new StockServiceError("STATE_CONFLICT", "Average Cost belum tersedia untuk stok yang akan dikeluarkan.");
+  const result = await applyStockMovement(tx, {
+    sparePartId: part.id,
+    movementType: "DELETE",
+    quantity: -stockBefore,
+    unitCost: averageCostBefore,
+    sourceType: "SPAREPART_DELETE",
+    sourceId: input.sourceId,
+    actorId: input.actorId,
+    sourceOperation: "DELETE",
+    clearAverageCostWhenEmpty: true,
+  });
+  return { stockBefore, averageCostBefore, movement: result.movement, currentStock: result.currentStock, averageCost: result.averageCost };
 }
 
 export async function applyPurchaseInventoryDelta(tx: Prisma.TransactionClient, input: {
@@ -256,6 +284,9 @@ export async function recordOpeningStock(input: {
           sourceId: input.key,
           actorId: actor.id,
         });
+        if (part.latestBuyPrice === null) {
+          await tx.sparePart.update({ where: { id: part.id }, data: { latestBuyPrice: input.unitCost } });
+        }
         await writeAudit(tx, {
           actorId: actor.id,
           actorUsername: actor.username,
@@ -263,8 +294,8 @@ export async function recordOpeningStock(input: {
           objectType: "SPAREPART",
           objectId: part.id.toString(),
           beforeAfter: {
-            before: { currentStock: part.stockOnHand.toString(), averageCost: part.averageCost?.toString() ?? null },
-            after: { currentStock: result.currentStock.toString(), averageCost: result.averageCost?.toString() ?? null },
+            before: { currentStock: part.stockOnHand.toString(), averageCost: part.averageCost?.toString() ?? null, latestBuyPrice: part.latestBuyPrice?.toString() ?? null },
+            after: { currentStock: result.currentStock.toString(), averageCost: result.averageCost?.toString() ?? null, latestBuyPrice: (part.latestBuyPrice ?? input.unitCost).toString() },
           },
         });
         return {
@@ -274,6 +305,7 @@ export async function recordOpeningStock(input: {
           quantityAdded: input.quantity.toString(),
           currentStock: result.currentStock.toString(),
           averageCost: result.averageCost?.toString() ?? null,
+          latestBuyPrice: (part.latestBuyPrice ?? input.unitCost).toString(),
         };
       },
     });

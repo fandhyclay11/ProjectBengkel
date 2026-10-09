@@ -2,13 +2,14 @@ import "server-only";
 import { writeAudit } from "@/server/audit";
 import { findNameConflict, findSimilarCandidates, findSpareParts, type SparePartRole } from "@/server/sparepart-repository";
 import { executeIdempotent, IdempotencyError } from "@/server/idempotency";
+import { applySparePartDeletion, StockServiceError } from "@/server/stock-service";
 
 type Actor = { id: bigint; username: string };
 type PartInput = { name: string; sellingPrice: bigint; minimumStock: bigint };
 type PartUpdate = Partial<PartInput> & { isActive?: boolean };
 
 export class SparePartServiceError extends Error {
-  constructor(readonly kind: "NOT_FOUND" | "DUPLICATE_NAME" | "SIMILAR_NAME" | "IDEMPOTENCY_CONFLICT" | "INVALID_KEY", message: string, readonly similarParts: Array<{ id: string; code: string; name: string }> = []) {
+  constructor(readonly kind: "NOT_FOUND" | "DUPLICATE_NAME" | "SIMILAR_NAME" | "IDEMPOTENCY_CONFLICT" | "INVALID_KEY" | "STATE_CONFLICT", message: string, readonly similarParts: Array<{ id: string; code: string; name: string }> = []) {
     super(message);
   }
 }
@@ -120,19 +121,21 @@ export async function updateSparePart(id: bigint, input: PartUpdate, actor: Acto
 
 export async function deleteSparePart(id: bigint, actor: Actor, key: string) {
   try {
-    return await executeIdempotent({ actor, operation: "sparepart.delete", key, payload: { id: id.toString() }, run: async (tx) => {
+      return await executeIdempotent({ actor, operation: "sparepart.delete", key, payload: { id: id.toString() }, run: async (tx) => {
       const before = await tx.sparePart.findFirst({ where: { id, deletedAt: null } });
       if (!before) throw new SparePartServiceError("NOT_FOUND", "Sparepart tidak ditemukan.");
+      const stock = await applySparePartDeletion(tx, { sparePartId: id, sourceId: id.toString(), actorId: actor.id });
       const deleted = await tx.sparePart.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
       await writeAudit(tx, {
         actorId: actor.id, actorUsername: actor.username, action: "SPAREPART_REMOVED_FROM_ACTIVE_LIST",
         objectType: "SPAREPART", objectId: id.toString(),
-        beforeAfter: { before: { code: before.code, name: before.name, isActive: before.isActive }, after: { deletedAt: deleted.deletedAt?.toISOString(), isActive: deleted.isActive } },
+        beforeAfter: { before: { code: before.code, name: before.name, isActive: before.isActive, stockOnHand: stock.stockBefore.toString(), averageCost: stock.averageCostBefore?.toString() ?? null }, after: { deletedAt: deleted.deletedAt?.toISOString(), isActive: deleted.isActive, stockOnHand: stock.currentStock.toString(), averageCost: stock.averageCost?.toString() ?? null, inventoryValueRemoved: (stock.stockBefore * (stock.averageCostBefore ?? 0n)).toString(), movementId: stock.movement?.id.toString() ?? null } },
       });
-      return { ok: true as const };
+      return { ok: true as const, movementId: stock.movement?.id.toString() ?? null };
     } });
   } catch (error) {
     if (error instanceof IdempotencyError) throw new SparePartServiceError(error.kind === "CONFLICT" ? "IDEMPOTENCY_CONFLICT" : "INVALID_KEY", error.message);
+    if (error instanceof StockServiceError) throw new SparePartServiceError(error.kind === "NOT_FOUND" || error.kind === "STATE_CONFLICT" ? error.kind : "INVALID_KEY", error.message);
     throw error;
   }
 }

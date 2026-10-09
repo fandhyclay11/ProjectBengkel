@@ -21,6 +21,7 @@ enum StockMovementType {
   ADJUSTMENT_OUT
   CORRECTION
   REVERSAL
+  DELETE
 }
 
 enum PurchaseStatus {
