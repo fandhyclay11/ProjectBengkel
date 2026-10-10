@@ -2,30 +2,559 @@
 
 import { useRef, useState } from "react";
 
-type Part = { id: string; code: string; name: string; sellingPrice?: string; currentStock: string; isActive?: boolean };
+type Part = {
+  id: string;
+  code: string;
+  name: string;
+  sellingPrice?: string;
+  currentStock: string;
+  isActive?: boolean;
+};
 type Item = { sparePartId: string; quantity: string; sellingPrice: string };
-type Sls = { id: string; slsNumber: string; transactionInput?: string; transactionDisplay: string; status: string; editCount?: number; items: Array<{ sparePartId?: string; code: string; name: string; quantity: string; sellingPrice: string; lineAmount: string; unitHppSnapshot?: string; lineHpp?: string }>; subtotal: string; discount: string; totalAmount: string; totalHpp?: string };
+type Sls = {
+  id: string;
+  slsNumber: string;
+  transactionInput?: string;
+  transactionDisplay: string;
+  status: string;
+  editCount?: number;
+  items: Array<{
+    sparePartId?: string;
+    code: string;
+    name: string;
+    quantity: string;
+    sellingPrice: string;
+    lineAmount: string;
+    unitHppSnapshot?: string;
+    lineHpp?: string;
+  }>;
+  subtotal: string;
+  discount: string;
+  totalAmount: string;
+  totalHpp?: string;
+};
 
 const money = (value: string) => `Rp${BigInt(value).toLocaleString("id-ID")}`;
-function csrfToken() { return document.cookie.split(";").map((item) => item.trim()).find((item) => item.startsWith("pb_csrf="))?.slice(8) ?? ""; }
-async function send(url: string, body: unknown, key?: string, method = "POST") { const response = await fetch(url, { method, headers: { "content-type": "application/json", "x-csrf-token": csrfToken(), ...(key ? { "idempotency-key": key } : {}) }, body: JSON.stringify(body) }); const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error ?? "Permintaan gagal."); return result; }
+function csrfToken() {
+  return (
+    document.cookie
+      .split(";")
+      .map((item) => item.trim())
+      .find((item) => item.startsWith("pb_csrf="))
+      ?.slice(8) ?? ""
+  );
+}
+async function send(url: string, body: unknown, key?: string, method = "POST") {
+  const response = await fetch(url, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      "x-csrf-token": csrfToken(),
+      ...(key ? { "idempotency-key": key } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error ?? "Permintaan gagal.");
+  return result;
+}
 
-export function SlsClient({ role, initialSls, spareparts, defaultDateTime }: { role: "ADMIN" | "USER"; initialSls: Sls[]; spareparts: Part[]; defaultDateTime: string }) {
+export function SlsClient({
+  role,
+  initialSls,
+  spareparts,
+  defaultDateTime,
+  defaultSlsDate,
+}: {
+  role: "ADMIN" | "USER";
+  initialSls: Sls[];
+  spareparts: Part[];
+  defaultDateTime: string;
+  defaultSlsDate: string;
+}) {
   const activeSpareparts = spareparts.filter((part) => part.isActive !== false);
-  const [sls, setSls] = useState(initialSls); const [transactionAt, setTransactionAt] = useState(defaultDateTime); const [discount, setDiscount] = useState("0"); const [items, setItems] = useState<Item[]>([{ sparePartId: activeSpareparts[0]?.id ?? "", quantity: "1", sellingPrice: "" }]); const [partSearch, setPartSearch] = useState(""); const [preview, setPreview] = useState<Record<string, unknown> | null>(null); const [message, setMessage] = useState(""); const [saving, setSaving] = useState(false); const [editing, setEditing] = useState<Sls | null>(null); const saveKey = useRef<string | null>(null);
+  const [sls, setSls] = useState(initialSls);
+  const [slsDate, setSlsDate] = useState(defaultSlsDate);
+  const [transactionAt, setTransactionAt] = useState(defaultDateTime);
+  const [discount, setDiscount] = useState("0");
+  const [items, setItems] = useState<Item[]>([
+    {
+      sparePartId: activeSpareparts[0]?.id ?? "",
+      quantity: "1",
+      sellingPrice: "",
+    },
+  ]);
+  const [partSearch, setPartSearch] = useState("");
+  const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<Sls | null>(null);
+  const saveKey = useRef<string | null>(null);
   const searchTerm = partSearch.trim().toLocaleLowerCase("id-ID");
-  const searchMatches = activeSpareparts.some((part) => part.code.toLocaleLowerCase("id-ID").includes(searchTerm) || part.name.toLocaleLowerCase("id-ID").includes(searchTerm));
+  const searchMatches = activeSpareparts.some(
+    (part) =>
+      part.code.toLocaleLowerCase("id-ID").includes(searchTerm) ||
+      part.name.toLocaleLowerCase("id-ID").includes(searchTerm),
+  );
   const profit = (total: string, hpp: string) => BigInt(total) - BigInt(hpp);
-  const margin = (total: string, hpp: string) => BigInt(total) === 0n ? "—" : `${(profit(total, hpp) * 100n / BigInt(total)).toString()}%`;
-  const optionsFor = (selectedId: string, rowIndex: number) => activeSpareparts.filter((part) => !items.some((other, otherIndex) => otherIndex !== rowIndex && other.sparePartId === part.id) && (part.id === selectedId || !searchTerm || part.code.toLocaleLowerCase("id-ID").includes(searchTerm) || part.name.toLocaleLowerCase("id-ID").includes(searchTerm)));
-  const selectedPart = (id: string) => activeSpareparts.find((part) => part.id === id);
-  const payload = () => ({ transactionAt, discount, items: items.map((item) => ({ ...item, sellingPrice: item.sellingPrice || undefined })) });
-  const refresh = async () => { const response = await fetch("/api/sls", { cache: "no-store" }); if (response.ok) setSls((await response.json()).sls); };
-  const previewSls = async () => { setSaving(true); try { setPreview((await send("/api/sls/preview", payload())).preview); setMessage("Preview berhasil. Belum ada transaksi atau perubahan stok."); } catch (error) { setMessage((error as Error).message); } finally { setSaving(false); } };
-  const save = async () => { saveKey.current ??= crypto.randomUUID(); setSaving(true); try { const result = await send("/api/sls", payload(), saveKey.current); setMessage(`SLS ${result.sls.slsNumber} berhasil disimpan.`); saveKey.current = null; setPreview(null); setDiscount("0"); setItems([{ sparePartId: activeSpareparts[0]?.id ?? "", quantity: "1", sellingPrice: "" }]); await refresh(); } catch (error) { setMessage((error as Error).message); } finally { setSaving(false); } };
-  const beginEdit = (value: Sls) => { setEditing(value); setTransactionAt(value.transactionInput ?? defaultDateTime); setDiscount(value.discount); setItems(value.items.map((item) => ({ sparePartId: item.sparePartId ?? spareparts.find((part) => part.code === item.code)?.id ?? "", quantity: item.quantity, sellingPrice: item.sellingPrice }))); setPreview(null); setMessage(`Mengedit ${value.slsNumber}.`); };
-  const edit = async () => { if (!editing) return; const reason = window.prompt("Alasan edit wajib diisi:", ""); if (reason === null) return; setSaving(true); try { const result = await send(`/api/admin/sls/${editing.id}`, { ...payload(), reason }, crypto.randomUUID(), "PATCH"); setMessage(`SLS ${result.sls.slsNumber} berhasil diedit.`); setEditing(null); await refresh(); } catch (error) { setMessage((error as Error).message); } finally { setSaving(false); } };
-  const cancel = async (value: Sls) => { if (!window.confirm(`Batalkan ${value.slsNumber}? Status menjadi CANCELED dan tidak dapat diaktifkan kembali.`)) return; const reason = window.prompt("Alasan pembatalan wajib diisi:", ""); if (reason === null) return; setSaving(true); try { await send(`/api/admin/sls/${value.id}/cancel`, { reason }, crypto.randomUUID()); setMessage(`SLS ${value.slsNumber} dibatalkan.`); await refresh(); } catch (error) { setMessage((error as Error).message); } finally { setSaving(false); } };
-  const addItem = () => setItems((old) => [...old, { sparePartId: activeSpareparts.find((part) => !old.some((item) => item.sparePartId === part.id))?.id ?? "", quantity: "1", sellingPrice: "" }]);
-  return <main className="mx-auto max-w-6xl p-6"><a href="/beranda" className="text-sm text-blue-700">← Beranda</a><h1 className="mt-3 text-2xl font-semibold">SLS</h1><p className="mt-2 text-sm text-slate-600">Preview tidak menyimpan data. SLS menjadi Completed dan mengurangi stok setelah disimpan.</p>{message && <p role="status" className="my-3 rounded bg-slate-100 p-3">{message}</p>}<section className="my-5 rounded border bg-white p-4"><h2 className="font-semibold">{editing ? `Edit ${editing.slsNumber}` : "Buat SLS"}</h2><div className="mt-3 grid gap-3 md:grid-cols-2"><label className="grid gap-1 text-sm">Tanggal dan waktu<input className="rounded border px-3 py-2" type="datetime-local" value={transactionAt} onChange={(event) => setTransactionAt(event.target.value)} /></label><label className="grid gap-1 text-sm">Discount (Rp)<input className="rounded border px-3 py-2" inputMode="numeric" value={discount} onChange={(event) => setDiscount(event.target.value)} /></label></div><input aria-label="Cari sparepart SLS" className="mt-4 w-full rounded border px-3 py-2" placeholder="Cari berdasarkan kode atau nama" value={partSearch} onChange={(event) => setPartSearch(event.target.value)} />{searchTerm && !searchMatches && <p className="mt-1 text-sm text-slate-600">Tidak ada sparepart aktif yang cocok dengan pencarian.</p>}<div className="mt-4 space-y-2">{items.map((item, index) => { const part = selectedPart(item.sparePartId); return <div key={index} className="grid gap-2 rounded border p-3 md:grid-cols-[2fr_1fr_1fr_auto]"><div><select className="w-full rounded border px-2 py-2" value={item.sparePartId} onChange={(event) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, sparePartId: event.target.value } : row))}><option value="">Pilih sparepart</option>{optionsFor(item.sparePartId, index).map((option) => <option key={option.id} value={option.id}>{option.code} — {option.name}</option>)}</select>{role === "ADMIN" && part && <p className="mt-1 text-xs text-slate-600">Harga jual rekomendasi: {money(part.sellingPrice ?? "0")}</p>}</div><input className="rounded border px-2 py-2" inputMode="numeric" placeholder="Jumlah pcs" value={item.quantity} onChange={(event) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: event.target.value } : row))} /><input className="rounded border px-2 py-2" inputMode="numeric" placeholder="Harga jual transaksi (Rp)" value={item.sellingPrice} onChange={(event) => setItems((old) => old.map((row, rowIndex) => rowIndex === index ? { ...row, sellingPrice: event.target.value } : row))} /><button className="rounded border px-3 py-2" onClick={() => setItems((old) => old.filter((_, rowIndex) => rowIndex !== index))}>Hapus</button></div>; })}</div><button className="mt-2 rounded border px-3 py-2" onClick={addItem} disabled={items.length >= activeSpareparts.length}>Tambah sparepart</button><div className="mt-5 flex flex-wrap gap-2">{editing ? <><button disabled={saving} className="rounded bg-blue-700 px-4 py-2 text-white" onClick={() => void edit()}>Simpan Edit</button><button disabled={saving} className="rounded border px-4 py-2" onClick={() => setEditing(null)}>Batal Edit</button></> : <><button disabled={saving} className="rounded border px-4 py-2" onClick={() => void previewSls()}>Preview</button>{preview && <button disabled={saving} className="rounded bg-blue-700 px-4 py-2 text-white" onClick={() => void save()}>Simpan SLS</button>}</>}</div>{preview && <div className="mt-4 rounded bg-slate-50 p-4"><h3 className="font-medium">Hasil Preview</h3><p>Subtotal: {money(String(preview.subtotal))}</p><p>Discount: {money(String(preview.discount))}</p>{role === "ADMIN" && preview.totalHpp !== undefined && <p>HPP: {money(String(preview.totalHpp))}</p>}<p>Total: {money(String(preview.totalAmount))}</p>{role === "ADMIN" && preview.totalHpp !== undefined && <><p>Gross Profit: {money(profit(String(preview.totalAmount), String(preview.totalHpp)).toString())}</p><p>Margin SLS: {margin(String(preview.totalAmount), String(preview.totalHpp))}</p></>}</div>}</section><section className="space-y-3"><h2 className="text-xl font-semibold">Riwayat SLS</h2>{sls.map((value) => <article key={value.id} className="flex flex-col rounded border bg-white p-4"><div className="order-1"><h3 className="font-semibold">{value.slsNumber} · {value.status}</h3><p className="text-sm text-slate-600">{value.transactionDisplay}</p></div><ul className="order-2 mt-3 text-sm">{value.items.map((item) => <li key={`${value.id}-${item.code}`}>{item.code} — {item.name} × {item.quantity} — {money(item.sellingPrice)}</li>)}</ul><div className="order-3 mt-5"><dl className="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm"><dt>Subtotal</dt><dd>{money(value.subtotal)}</dd><dt>Discount</dt><dd>{money(value.discount)}</dd>{role === "ADMIN" && value.totalHpp !== undefined && <><dt>HPP</dt><dd>{money(value.totalHpp)}</dd></>}<dt>Total</dt><dd className="font-semibold">{money(value.totalAmount)}</dd>{role === "ADMIN" && value.totalHpp !== undefined && <><dt>Gross Profit</dt><dd>{money(profit(value.totalAmount, value.totalHpp).toString())}</dd><dt>Margin SLS</dt><dd>{margin(value.totalAmount, value.totalHpp)}</dd></>}</dl></div>{role === "ADMIN" && value.status === "COMPLETED" && value.editCount === 0 && <div className="order-4 mt-3 flex gap-2"><button disabled={saving} className="rounded border px-3 py-2" onClick={() => beginEdit(value)}>Edit</button><button disabled={saving} className="rounded border px-3 py-2" onClick={() => void cancel(value)}>Cancel</button></div>}{role === "ADMIN" && value.status === "COMPLETED" && value.editCount === 1 && <button disabled={saving} className="order-4 mt-3 rounded border px-3 py-2" onClick={() => void cancel(value)}>Cancel</button>}</article>)}{!sls.length && <p className="rounded border bg-white p-4 text-slate-600">Belum ada SLS.</p>}</section></main>;
+  const margin = (total: string, hpp: string) =>
+    BigInt(total) === 0n
+      ? "—"
+      : `${((profit(total, hpp) * 100n) / BigInt(total)).toString()}%`;
+  const optionsFor = (selectedId: string, rowIndex: number) =>
+    activeSpareparts.filter(
+      (part) =>
+        !items.some(
+          (other, otherIndex) =>
+            otherIndex !== rowIndex && other.sparePartId === part.id,
+        ) &&
+        (part.id === selectedId ||
+          !searchTerm ||
+          part.code.toLocaleLowerCase("id-ID").includes(searchTerm) ||
+          part.name.toLocaleLowerCase("id-ID").includes(searchTerm)),
+    );
+  const selectedPart = (id: string) =>
+    activeSpareparts.find((part) => part.id === id);
+  const payload = () => ({
+    transactionAt,
+    discount,
+    items: items.map((item) => ({
+      ...item,
+      sellingPrice: item.sellingPrice || undefined,
+    })),
+  });
+  const refresh = async () => {
+    const response = await fetch(`/api/sls?date=${encodeURIComponent(slsDate)}`, {
+      cache: "no-store",
+    });
+    if (response.ok) setSls((await response.json()).sls);
+  };
+  const previewSls = async () => {
+    setSaving(true);
+    try {
+      setPreview((await send("/api/sls/preview", payload())).preview);
+      setMessage("Preview berhasil. Belum ada transaksi atau perubahan stok.");
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const save = async () => {
+    saveKey.current ??= crypto.randomUUID();
+    setSaving(true);
+    try {
+      const result = await send("/api/sls", payload(), saveKey.current);
+      setMessage(`SLS ${result.sls.slsNumber} berhasil disimpan.`);
+      saveKey.current = null;
+      setPreview(null);
+      setDiscount("0");
+      setItems([
+        {
+          sparePartId: activeSpareparts[0]?.id ?? "",
+          quantity: "1",
+          sellingPrice: "",
+        },
+      ]);
+      await refresh();
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const beginEdit = (value: Sls) => {
+    setEditing(value);
+    setTransactionAt(value.transactionInput ?? defaultDateTime);
+    setDiscount(value.discount);
+    setItems(
+      value.items.map((item) => ({
+        sparePartId:
+          item.sparePartId ??
+          spareparts.find((part) => part.code === item.code)?.id ??
+          "",
+        quantity: item.quantity,
+        sellingPrice: item.sellingPrice,
+      })),
+    );
+    setPreview(null);
+    setMessage(`Mengedit ${value.slsNumber}.`);
+  };
+  const edit = async () => {
+    if (!editing) return;
+    const reason = window.prompt("Alasan edit wajib diisi:", "");
+    if (reason === null) return;
+    setSaving(true);
+    try {
+      const result = await send(
+        `/api/admin/sls/${editing.id}`,
+        { ...payload(), reason },
+        crypto.randomUUID(),
+        "PATCH",
+      );
+      setMessage(`SLS ${result.sls.slsNumber} berhasil diedit.`);
+      setEditing(null);
+      await refresh();
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const cancel = async (value: Sls) => {
+    if (
+      !window.confirm(
+        `Batalkan ${value.slsNumber}? Status menjadi CANCELED dan tidak dapat diaktifkan kembali.`,
+      )
+    )
+      return;
+    const reason = window.prompt("Alasan pembatalan wajib diisi:", "");
+    if (reason === null) return;
+    setSaving(true);
+    try {
+      await send(
+        `/api/admin/sls/${value.id}/cancel`,
+        { reason },
+        crypto.randomUUID(),
+      );
+      setMessage(`SLS ${value.slsNumber} dibatalkan.`);
+      await refresh();
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const addItem = () =>
+    setItems((old) => [
+      ...old,
+      {
+        sparePartId:
+          activeSpareparts.find(
+            (part) => !old.some((item) => item.sparePartId === part.id),
+          )?.id ?? "",
+        quantity: "1",
+        sellingPrice: "",
+      },
+    ]);
+  return (
+    <main className="mx-auto max-w-6xl p-6">
+      <a href="/beranda" className="text-sm text-blue-700">
+        ← Beranda
+      </a>
+      <h1 className="mt-3 text-2xl font-semibold">SLS</h1>
+      <p className="mt-2 text-sm text-slate-600">
+        Preview tidak menyimpan data. SLS menjadi Completed dan mengurangi stok
+        setelah disimpan.
+      </p>
+      {message && (
+        <p role="status" className="my-3 rounded bg-slate-100 p-3">
+          {message}
+        </p>
+      )}
+      <section className="my-5 rounded border bg-white p-4">
+        <h2 className="font-semibold">
+          {editing ? `Edit ${editing.slsNumber}` : "Buat SLS"}
+        </h2>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <label className="grid gap-1 text-sm">
+            Tanggal dan waktu
+            <input
+              className="rounded border px-3 py-2"
+              type="datetime-local"
+              value={transactionAt}
+              onChange={(event) => setTransactionAt(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            Discount (Rp)
+            <input
+              className="rounded border px-3 py-2"
+              inputMode="numeric"
+              value={discount}
+              onChange={(event) => setDiscount(event.target.value)}
+            />
+          </label>
+        </div>
+        <input
+          aria-label="Cari sparepart SLS"
+          className="mt-4 w-full rounded border px-3 py-2"
+          placeholder="Cari berdasarkan kode atau nama"
+          value={partSearch}
+          onChange={(event) => setPartSearch(event.target.value)}
+        />
+        {searchTerm && !searchMatches && (
+          <p className="mt-1 text-sm text-slate-600">
+            Tidak ada sparepart aktif yang cocok dengan pencarian.
+          </p>
+        )}
+        <div className="mt-4 space-y-2">
+          {items.map((item, index) => {
+            const part = selectedPart(item.sparePartId);
+            return (
+              <div
+                key={index}
+                className="grid gap-2 rounded border p-3 md:grid-cols-[2fr_1fr_1fr_auto]"
+              >
+                <div>
+                  <select
+                    className="w-full rounded border px-2 py-2"
+                    value={item.sparePartId}
+                    onChange={(event) =>
+                      setItems((old) =>
+                        old.map((row, rowIndex) =>
+                          rowIndex === index
+                            ? { ...row, sparePartId: event.target.value }
+                            : row,
+                        ),
+                      )
+                    }
+                  >
+                    <option value="">Pilih sparepart</option>
+                    {optionsFor(item.sparePartId, index).map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.code} — {option.name}
+                      </option>
+                    ))}
+                  </select>
+                  {role === "ADMIN" && part && (
+                    <p className="mt-1 text-xs text-slate-600">
+                      Harga jual rekomendasi: {money(part.sellingPrice ?? "0")}
+                    </p>
+                  )}
+                </div>
+                <input
+                  className="rounded border px-2 py-2"
+                  inputMode="numeric"
+                  placeholder="Jumlah pcs"
+                  value={item.quantity}
+                  onChange={(event) =>
+                    setItems((old) =>
+                      old.map((row, rowIndex) =>
+                        rowIndex === index
+                          ? { ...row, quantity: event.target.value }
+                          : row,
+                      ),
+                    )
+                  }
+                />
+                <input
+                  className="rounded border px-2 py-2"
+                  inputMode="numeric"
+                  placeholder="Harga jual transaksi (Rp)"
+                  value={item.sellingPrice}
+                  onChange={(event) =>
+                    setItems((old) =>
+                      old.map((row, rowIndex) =>
+                        rowIndex === index
+                          ? { ...row, sellingPrice: event.target.value }
+                          : row,
+                      ),
+                    )
+                  }
+                />
+                <button
+                  className="rounded border px-3 py-2"
+                  onClick={() =>
+                    setItems((old) =>
+                      old.filter((_, rowIndex) => rowIndex !== index),
+                    )
+                  }
+                >
+                  Hapus
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <button
+          className="mt-2 rounded border px-3 py-2"
+          onClick={addItem}
+          disabled={items.length >= activeSpareparts.length}
+        >
+          Tambah sparepart
+        </button>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {editing ? (
+            <>
+              <button
+                disabled={saving}
+                className="rounded bg-blue-700 px-4 py-2 text-white"
+                onClick={() => void edit()}
+              >
+                Simpan Edit
+              </button>
+              <button
+                disabled={saving}
+                className="rounded border px-4 py-2"
+                onClick={() => setEditing(null)}
+              >
+                Batal Edit
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                disabled={saving}
+                className="rounded border px-4 py-2"
+                onClick={() => void previewSls()}
+              >
+                Preview
+              </button>
+              {preview && (
+                <button
+                  disabled={saving}
+                  className="rounded bg-blue-700 px-4 py-2 text-white"
+                  onClick={() => void save()}
+                >
+                  Simpan SLS
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        {preview && (
+          <div className="mt-4 rounded bg-slate-50 p-4">
+            <h3 className="font-medium">Hasil Preview</h3>
+            <p>Subtotal: {money(String(preview.subtotal))}</p>
+            <p>Discount: {money(String(preview.discount))}</p>
+            {role === "ADMIN" && preview.totalHpp !== undefined && (
+              <p>HPP: {money(String(preview.totalHpp))}</p>
+            )}
+            <p>Total: {money(String(preview.totalAmount))}</p>
+            {role === "ADMIN" && preview.totalHpp !== undefined && (
+              <>
+                <p>
+                  Gross Profit:{" "}
+                  {money(
+                    profit(
+                      String(preview.totalAmount),
+                      String(preview.totalHpp),
+                    ).toString(),
+                  )}
+                </p>
+                <p>
+                  Margin SLS:{" "}
+                  {margin(
+                    String(preview.totalAmount),
+                    String(preview.totalHpp),
+                  )}
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </section>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-xl font-semibold">Riwayat SLS</h2>
+          <div className="flex items-end gap-2">
+            <label className="grid gap-1 text-sm">
+              Tanggal riwayat
+              <input
+                className="rounded border px-3 py-2"
+                type="date"
+                value={slsDate}
+                onChange={(event) => setSlsDate(event.target.value)}
+              />
+            </label>
+            <button
+              className="rounded bg-blue-700 px-3 py-2 text-white disabled:opacity-50"
+              disabled={saving}
+              onClick={() => void refresh()}
+            >
+              Tampilkan
+            </button>
+          </div>
+        </div>
+        {sls.map((value) => (
+          <article
+            key={value.id}
+            className="flex flex-col rounded border bg-white p-4"
+          >
+            <div className="order-1">
+              <h3 className="font-semibold">
+                {value.slsNumber} · {value.status}
+              </h3>
+              <p className="text-sm text-slate-600">
+                {value.transactionDisplay}
+              </p>
+            </div>
+            <ul className="order-2 mt-3 text-sm">
+              {value.items.map((item) => (
+                <li key={`${value.id}-${item.code}`}>
+                  {item.code} — {item.name} × {item.quantity} —{" "}
+                  {money(item.sellingPrice)}
+                </li>
+              ))}
+            </ul>
+            <div className="order-3 mt-5">
+              <dl className="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
+                <dt>Subtotal</dt>
+                <dd>{money(value.subtotal)}</dd>
+                <dt>Discount</dt>
+                <dd>{money(value.discount)}</dd>
+                {role === "ADMIN" && value.totalHpp !== undefined && (
+                  <>
+                    <dt>HPP</dt>
+                    <dd>{money(value.totalHpp)}</dd>
+                  </>
+                )}
+                <dt>Total</dt>
+                <dd className="font-semibold">{money(value.totalAmount)}</dd>
+                {role === "ADMIN" && value.totalHpp !== undefined && (
+                  <>
+                    <dt>Gross Profit</dt>
+                    <dd>
+                      {money(
+                        profit(value.totalAmount, value.totalHpp).toString(),
+                      )}
+                    </dd>
+                    <dt>Margin SLS</dt>
+                    <dd>{margin(value.totalAmount, value.totalHpp)}</dd>
+                  </>
+                )}
+              </dl>
+            </div>
+            {role === "ADMIN" &&
+              value.status === "COMPLETED" &&
+              value.editCount === 0 && (
+                <div className="order-4 mt-3 flex gap-2">
+                  <button
+                    disabled={saving}
+                    className="rounded border px-3 py-2"
+                    onClick={() => beginEdit(value)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    disabled={saving}
+                    className="rounded border px-3 py-2"
+                    onClick={() => void cancel(value)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            {role === "ADMIN" &&
+              value.status === "COMPLETED" &&
+              value.editCount === 1 && (
+                <button
+                  disabled={saving}
+                  className="order-4 mt-3 rounded border px-3 py-2"
+                  onClick={() => void cancel(value)}
+                >
+                  Cancel
+                </button>
+              )}
+          </article>
+        ))}
+        {!sls.length && (
+          <p className="rounded border bg-white p-4 text-slate-600">
+            Belum ada SLS.
+          </p>
+        )}
+      </section>
+    </main>
+  );
 }

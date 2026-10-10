@@ -9,7 +9,8 @@ export default async function SlsPage() {
   const session = await currentSession();
   if (!session) redirect("/");
   if (session.user.mustChangePassword) redirect("/ganti-password");
-  const [sls, sparepartsResult] = await Promise.all([listSls(session.user.role), listSpareParts(session.user.role)]);
+  const today = workshopDateTimeInput(new Date()).slice(0, 10);
+  const [sls, sparepartsResult] = await Promise.all([listSls(session.user.role, today), listSpareParts(session.user.role)]);
   const spareparts = sparepartsResult.filter((part) => !('isActive' in part) || part.isActive);
-  return <SlsClient role={session.user.role} initialSls={sls} spareparts={spareparts} defaultDateTime={workshopDateTimeInput(new Date())} />;
+  return <SlsClient role={session.user.role} initialSls={sls} spareparts={spareparts} defaultDateTime={workshopDateTimeInput(new Date())} defaultSlsDate={today} />;
 }

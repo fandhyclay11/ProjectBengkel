@@ -4,7 +4,7 @@ import { prisma } from "@/server/db";
 import { writeAudit } from "@/server/audit";
 import { applyStockDelta, applyStockMovement, StockServiceError } from "@/server/stock-service";
 import { executeIdempotent, IdempotencyError } from "@/server/idempotency";
-import { workshopDateKey, workshopDateTimeDisplay, workshopDateTimeInput } from "@/server/datetime";
+import { workshopDateKey, workshopDateRange, workshopDateTimeDisplay, workshopDateTimeInput } from "@/server/datetime";
 
 const MAX_BIGINT = 9_223_372_036_854_775_807n;
 type Actor = { id: bigint; username: string };
@@ -195,8 +195,9 @@ export async function cancelSls(id: bigint, reasonInput: string, actor: Actor, k
   }
 }
 
-export async function listSls(role: "ADMIN" | "USER") {
-  const rows = await prisma.sls.findMany({ include: slsInclude, orderBy: [{ transactionAt: "desc" }, { id: "desc" }], take: 200 });
+export async function listSls(role: "ADMIN" | "USER", date: string) {
+  const range = workshopDateRange(date, date);
+  const rows = await prisma.sls.findMany({ where: { transactionAt: { gte: range.from, lt: range.toExclusive } }, include: slsInclude, orderBy: [{ transactionAt: "desc" }, { id: "desc" }] });
   return rows.map((row) => mapSls(row, role));
 }
 
