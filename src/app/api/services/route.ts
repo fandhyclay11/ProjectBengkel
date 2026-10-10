@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentSession, hasValidCsrf } from "@/server/auth";
-import { DateTimeInputError, parseWorkshopDateTime } from "@/server/datetime";
+import { DateTimeInputError, parseWorkshopDateTime, workshopDateTimeInput } from "@/server/datetime";
 import { createService, listServices, ServiceServiceError } from "@/server/service-service";
 
 const max = 9_223_372_036_854_775_807n;
@@ -29,11 +29,14 @@ async function authenticated(request: Request) {
   return { session, response: null };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await currentSession();
   if (!session) return NextResponse.json({ error: "Autentikasi diperlukan." }, { status: 401 });
   if (session.user.mustChangePassword) return NextResponse.json({ error: "Ganti password sebelum melanjutkan." }, { status: 403 });
-  return NextResponse.json({ services: await listServices(session.user.role) });
+  const date = new URL(request.url).searchParams.get("date") ?? workshopDateTimeInput(new Date()).slice(0, 10);
+  try {
+    return NextResponse.json({ services: await listServices(session.user.role, date) });
+  } catch (error) { return failure(error); }
 }
 
 export async function POST(request: Request) {

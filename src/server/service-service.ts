@@ -4,7 +4,7 @@ import { prisma } from "@/server/db";
 import { writeAudit } from "@/server/audit";
 import { applyStockDelta, applyStockMovement, StockServiceError } from "@/server/stock-service";
 import { executeIdempotent, IdempotencyError } from "@/server/idempotency";
-import { workshopDateKey, workshopDateTimeDisplay, workshopDateTimeInput } from "@/server/datetime";
+import { workshopDateKey, workshopDateRange, workshopDateTimeDisplay, workshopDateTimeInput } from "@/server/datetime";
 
 const MAX_BIGINT = 9_223_372_036_854_775_807n;
 type Actor = { id: bigint; username: string };
@@ -232,8 +232,9 @@ export async function cancelService(id: bigint, reasonInput: string, actor: Acto
   }
 }
 
-export async function listServices(role: "ADMIN" | "USER") {
-  const rows = await prisma.service.findMany({ include: serviceInclude, orderBy: [{ transactionAt: "desc" }, { id: "desc" }], take: 200 });
+export async function listServices(role: "ADMIN" | "USER", date: string) {
+  const range = workshopDateRange(date, date);
+  const rows = await prisma.service.findMany({ where: { transactionAt: { gte: range.from, lt: range.toExclusive } }, include: serviceInclude, orderBy: [{ transactionAt: "desc" }, { id: "desc" }] });
   return rows.map((row) => mapService(row, role));
 }
 

@@ -69,10 +69,10 @@ test("O3.1 HTTP preview and create use safe role DTOs and idempotent save", asyn
     const replayResponse = await fetch(`${baseUrl}/api/services`, { method: "POST", headers: { "content-type": "application/json", cookie: userCookie, origin: baseUrl, "x-csrf-token": userSession.csrf, "idempotency-key": key }, body: JSON.stringify(body) });
     assert.equal(replayResponse.status, 201);
     assert.equal((await replayResponse.json()).service.id, saved.id);
-    const listResponse = await fetch(`${baseUrl}/api/services`, { headers: { cookie: userCookie } });
+    const listResponse = await fetch(`${baseUrl}/api/services?date=2026-09-30`, { headers: { cookie: userCookie } });
     assert.equal(listResponse.status, 200);
     assert.equal("totalHpp" in (await listResponse.json()).services[0], false);
-    const adminListResponse = await fetch(`${baseUrl}/api/services`, { headers: { cookie: adminSession.cookie } });
+    const adminListResponse = await fetch(`${baseUrl}/api/services?date=2026-09-30`, { headers: { cookie: adminSession.cookie } });
     assert.equal(adminListResponse.status, 200);
     const adminHistory = (await adminListResponse.json()).services.find((service: { id: string }) => service.id === saved.id);
     assert.ok(adminHistory);
