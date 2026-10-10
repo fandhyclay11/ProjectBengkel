@@ -3,7 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import { writeAudit } from "@/server/audit";
 import { executeIdempotent, IdempotencyError } from "@/server/idempotency";
-import { workshopDateKey, workshopDateTimeDisplay, workshopDateTimeInput } from "@/server/datetime";
+import { workshopDateKey, workshopDateRange, workshopDateTimeDisplay, workshopDateTimeInput } from "@/server/datetime";
 import { calculateExpense, ExpenseCalculationError } from "@/server/expense-calculation";
 
 type Actor = { id: bigint; username: string };
@@ -45,5 +45,5 @@ export async function cancelExpense(id: bigint, actor: Actor, key: string, trans
   try { return await executeIdempotent({ actor, operation: "expense.cancel", key, transaction, payload: { id: id.toString() }, run: async (tx) => { await tx.$queryRaw`SELECT id FROM expenses WHERE id = ${id} FOR UPDATE`; const before = await tx.expense.findUnique({ where: { id }, include }); if (!before) throw new ExpenseServiceError("NOT_FOUND", "Expense tidak ditemukan."); if (before.status !== "COMPLETED") throw new ExpenseServiceError("STATE_CONFLICT", "Expense sudah dibatalkan atau tidak dapat dibatalkan."); const after = await tx.expense.update({ where: { id }, data: { status: "CANCELED" }, include }); const result = mapExpense(after); await writeAudit(tx, { actorId: actor.id, actorUsername: actor.username, action: "EXPENSE_CANCELED", objectType: "EXPENSE", objectId: id.toString(), beforeAfter: { before: auditValues(before), after: result } }); return result; } }); } catch (error) { if (error instanceof IdempotencyError) throw new ExpenseServiceError(error.kind === "CONFLICT" ? "IDEMPOTENCY_CONFLICT" : "INVALID", error.message); throw error; }
 }
 
-export async function listExpenses(canceled = false) { const rows = await prisma.expense.findMany({ where: { status: canceled ? "CANCELED" : "COMPLETED" }, include, orderBy: [{ transactionAt: "desc" }, { id: "desc" }], take: 200 }); return rows.map(mapExpense); }
+export async function listExpenses(date: string, canceled = false) { const range = workshopDateRange(date, date); const rows = await prisma.expense.findMany({ where: { status: canceled ? "CANCELED" : "COMPLETED", transactionAt: { gte: range.from, lt: range.toExclusive } }, include, orderBy: [{ transactionAt: "desc" }, { id: "desc" }] }); return rows.map(mapExpense); }
 export async function getExpense(id: bigint) { const row = await prisma.expense.findUnique({ where: { id }, include }); return row ? mapExpense(row) : null; }

@@ -4,7 +4,7 @@ import { prisma } from "@/server/db";
 import { writeAudit } from "@/server/audit";
 import { applyPurchaseInventoryDelta, applyStockMovement, StockServiceError } from "@/server/stock-service";
 import { executeIdempotent, IdempotencyError } from "@/server/idempotency";
-import { workshopDateKey, workshopDateTimeDisplay, workshopDateTimeInput } from "@/server/datetime";
+import { workshopDateKey, workshopDateRange, workshopDateTimeDisplay, workshopDateTimeInput } from "@/server/datetime";
 
 const MAX_BIGINT = 9_223_372_036_854_775_807n;
 type Actor = { id: bigint; username: string };
@@ -152,12 +152,12 @@ function userPurchaseDto(purchase: Parameters<typeof fullPurchaseDto>[0]) {
 
 const purchaseInclude = { items: true } as const;
 
-export async function listPurchases(role: "ADMIN" | "USER") {
+export async function listPurchases(role: "ADMIN" | "USER", date: string) {
+  const range = workshopDateRange(date, date);
   const rows = await prisma.purchase.findMany({
-    where: role === "ADMIN" ? undefined : { status: { not: "DRAFT" } },
+    where: { ...(role === "ADMIN" ? {} : { status: { not: "DRAFT" } }), transactionAt: { gte: range.from, lt: range.toExclusive } },
     include: purchaseInclude,
     orderBy: [{ transactionAt: "desc" }, { id: "desc" }],
-    take: 200,
   });
   return rows.map((row) => role === "ADMIN" ? fullPurchaseDto(row) : userPurchaseDto(row));
 }

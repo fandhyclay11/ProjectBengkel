@@ -9,7 +9,8 @@ export default async function PurchasesPage() {
   const session = await currentSession();
   if (!session) redirect("/");
   if (session.user.mustChangePassword) redirect("/ganti-password");
-  const purchases = await listPurchases(session.user.role);
+  const today = workshopDateTimeInput(new Date()).slice(0, 10);
+  const purchases = await listPurchases(session.user.role, today);
   const spareparts = session.user.role === "ADMIN" ? await listSpareParts("ADMIN") : [];
-  return <PurchasesClient role={session.user.role} initialPurchases={purchases} spareparts={spareparts} defaultDateTime={workshopDateTimeInput(new Date())} />;
+  return <PurchasesClient role={session.user.role} initialPurchases={purchases} spareparts={spareparts} defaultDateTime={workshopDateTimeInput(new Date())} defaultPurchaseDate={today} />;
 }
