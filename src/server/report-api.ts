@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/server/db";
-import { ReportQueryError, getFinancialSummary, listExpenseReport, listMovementReport, listPurchaseReport, listServiceReport, listSlsReport, listStockOpnameReport, listStockReport, type ReportName, type ReportPage } from "@/server/report-query-service";
+import { ReportQueryError, getFinancialSummary, getProfitLossComparison, getProfitLossTrend, listExpenseReport, listMovementReport, listPurchaseReport, listServiceReport, listSlsReport, listStockOpnameReport, listStockReport, type ReportName, type ReportPage } from "@/server/report-query-service";
 
 export const reportNames = ["services", "sls", "purchases", "expenses", "stock", "movements", "stock-opnames", "profit-loss"] as const;
 export const formats = ["pdf", "xlsx"] as const;
@@ -21,8 +21,13 @@ export async function queryReport(report: ReportName, input: ReportRequest, repo
   }
 }
 
+export async function queryProfitLoss(input: ReportRequest, repository = prisma) {
+  const [summary, comparison, monthlyTrend] = await Promise.all([getFinancialSummary("ADMIN", input, repository), getProfitLossComparison("ADMIN", repository), getProfitLossTrend("ADMIN", repository)]);
+  return { summary, comparison, monthlyTrend };
+}
+
 export async function collectReport(report: ReportName, input: ReportRequest, maxRows: number, repository = prisma) {
-  if (report === "profit-loss") return queryReport(report, input, repository);
+  if (report === "profit-loss") return queryProfitLoss(input, repository);
   const rows: unknown[] = []; let page = 1; let total = 0;
   do {
     const result = await queryReport(report, { ...input, page, pageSize: 100 }, repository) as ReportPage<unknown>;

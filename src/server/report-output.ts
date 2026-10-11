@@ -14,12 +14,16 @@ export function reportHeader(report: ReportName, from: string, to: string, gener
 }
 
 type Row = Record<string, unknown>;
-type ReportResult = ReportPage<unknown> | { summary: FinancialSummary };
+type ReportResult = ReportPage<unknown> | { summary: FinancialSummary; comparison?: Record<string, unknown>; monthlyTrend?: Array<Record<string, unknown>> };
 function value(input: unknown): string { if (input === null || input === undefined || input === "") return "-"; return String(input); }
 function money(input: unknown): string { if (input === null || input === undefined || input === "") return "-"; const raw = String(input); const negative = raw.startsWith("-"); const digits = raw.replace(/^-/, ""); return `${negative ? "-" : ""}Rp ${Number(digits).toLocaleString("id-ID")}`; }
 function qty(input: unknown): string { return value(input); }
 function date(input: unknown, timezone: string): string { return input ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: timezone }).format(new Date(String(input))) : "-"; }
 function rowsFor(page: ReportResult): Row[] { return "summary" in page ? [page.summary as unknown as Row] : page.rows as Row[]; }
+function renderProfitLossSections(pdf: PdfReport, page: Extract<ReportResult, { summary: FinancialSummary }>) {
+  const comparison = page.comparison; if (comparison) { const current = comparison.current as Row; const previous = comparison.previous as Row; const difference = comparison.difference as Row; const percent = comparison.percent as Row; const metrics = ["serviceRevenue", "slsRevenue", "hpp", "grossProfit", "expense", "netProfit"]; pdf.section("Month Comparison"); pdf.table([{ title: "Metric", width: 3 }, { title: "Current", width: 2, align: "right" }, { title: "Previous", width: 2, align: "right" }, { title: "Difference", width: 2, align: "right" }, { title: "%", width: 1, align: "right" }], metrics.map((key) => [key, money(current[key]), money(previous[key]), money(difference[key]), value(percent[key] === null ? "-" : percent[key]) ])); }
+  const trend = page.monthlyTrend ?? []; if (trend.length) { pdf.section("Monthly Trend"); pdf.table([{ title: "Month", width: 3 }, { title: "Revenue", width: 2, align: "right" }, { title: "HPP", width: 2, align: "right" }, { title: "Gross Profit", width: 2, align: "right" }, { title: "Expense", width: 2, align: "right" }, { title: "Net Profit", width: 2, align: "right" }], trend.map((row) => [value(row.monthLabel), money(row.totalRevenue), money(row.hpp), money(row.grossProfit), money(row.expense), money(row.netProfit)])); }
+}
 
 function flatRows(report: ReportName, page: ReportResult) {
   const output: Row[] = [];
@@ -65,6 +69,7 @@ function flatRows(report: ReportName, page: ReportResult) {
 export async function createExcel(report: ReportName, header: ReportHeader, page: ReportResult) {
   const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet("Report");
   sheet.addRows([[header.workshopName], [header.title], [`Periode: ${header.from} s/d ${header.to}`], [`Timezone: ${header.timezone}`], [`Dibuat: ${workshopDateTimeDisplay(new Date(header.generatedAt))}`], []]);
+  if (report === "profit-loss" && "summary" in page) { sheet.addRow(["Summary"]); sheet.addRow(["Metric", "Value"]); for (const [key, value] of Object.entries(page.summary)) sheet.addRow([key, Number(value)]); if (page.comparison) { const comparison = page.comparison; sheet.addRow([]); sheet.addRow(["Month Comparison"]); sheet.addRow(["Metric", "Current", "Previous", "Difference", "Percent"]); const current = comparison.current as Row; const previous = comparison.previous as Row; const difference = comparison.difference as Row; const percent = comparison.percent as Row; for (const key of ["serviceRevenue", "slsRevenue", "hpp", "grossProfit", "expense", "netProfit"]) sheet.addRow([key, Number(current[key]), Number(previous[key]), Number(difference[key]), percent[key] === null ? null : Number(percent[key])]); } if (page.monthlyTrend?.length) { sheet.addRow([]); sheet.addRow(["Monthly Trend"]); sheet.addRow(["Month", "Service Revenue", "SLS Revenue", "Total Revenue", "HPP", "Gross Profit", "Expense", "Net Profit"]); for (const row of page.monthlyTrend) sheet.addRow([row.monthLabel, Number(row.serviceRevenue), Number(row.slsRevenue), Number(row.totalRevenue), Number(row.hpp), Number(row.grossProfit), Number(row.expense), Number(row.netProfit)]); } return Buffer.from(await workbook.xlsx.writeBuffer()); }
   const rows = flatRows(report, page); const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))]; sheet.addRow(keys);
   for (const row of rows) sheet.addRow(keys.map((key) => value(row[key])));
   sheet.getRow(1).font = { bold: true, size: 14 }; sheet.getRow(2).font = { bold: true, size: 12 }; sheet.getRow(6).font = { bold: true }; sheet.views = [{ state: "frozen", ySplit: 6 }]; sheet.columns.forEach((column) => { column.width = 20; });
@@ -121,7 +126,7 @@ function renderProfitLoss(pdf: PdfReport, summary: Row) { pdf.section("Financial
 
 export async function createPdf(report: ReportName, header: ReportHeader, page: ReportResult) {
   const pdf = new PdfReport(header); const rows = rowsFor(page); const timezone = header.timezone;
-  if (report === "services") renderService(pdf, rows, timezone); else if (report === "sls") renderSls(pdf, rows, timezone); else if (report === "purchases") renderPurchase(pdf, rows, timezone); else if (report === "expenses") renderExpense(pdf, rows, timezone); else if (report === "stock") renderStock(pdf, rows); else if (report === "movements") renderMovement(pdf, rows, timezone); else if (report === "stock-opnames") renderOpname(pdf, rows, timezone); else renderProfitLoss(pdf, rows[0] ?? {});
+  if (report === "services") renderService(pdf, rows, timezone); else if (report === "sls") renderSls(pdf, rows, timezone); else if (report === "purchases") renderPurchase(pdf, rows, timezone); else if (report === "expenses") renderExpense(pdf, rows, timezone); else if (report === "stock") renderStock(pdf, rows); else if (report === "movements") renderMovement(pdf, rows, timezone); else if (report === "stock-opnames") renderOpname(pdf, rows, timezone); else { renderProfitLoss(pdf, rows[0] ?? {}); if ("summary" in page) renderProfitLossSections(pdf, page); }
   if (!rows.length) pdf.document.fontSize(10).text("Tidak ada data."); return pdf.finish();
 }
 

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateFinancialSummary, classifyStock, groupFinancialByDay, ReportQueryError } from "@/server/report-query-service";
+import { calculateFinancialSummary, classifyStock, groupFinancialByDay, profitLossComparisonPeriods, ReportQueryError } from "@/server/report-query-service";
 import { parseWorkshopDateTime, workshopDateRange, workshopDateTimeInput } from "@/server/datetime";
 
 test("R6.1 uses inclusive workshop-local date boundaries", () => {
@@ -111,4 +111,13 @@ test("R6.2 movement and stock opname exports flatten nested values", async () =>
   assert.match(opnameCsv, /Approved/);
   assert.match(opnameCsv, /Adjustment Keluar/);
   assert.ok((await createPdf("stock-opnames", opnameHeader, opnamePage)).subarray(0, 5).toString().startsWith("%PDF-"));
+});
+
+test("R6.3 comparison periods clamp calendar days across month and year boundaries", () => {
+  assert.deepEqual(profitLossComparisonPeriods(new Date("2026-10-28T12:00:00.000Z")), { currentFrom: "2026-10-01", currentTo: "2026-10-28", previousFrom: "2026-09-01", previousTo: "2026-09-28" });
+  assert.deepEqual(profitLossComparisonPeriods(new Date("2026-03-29T12:00:00.000Z")), { currentFrom: "2026-03-01", currentTo: "2026-03-29", previousFrom: "2026-02-01", previousTo: "2026-02-28" });
+  assert.deepEqual(profitLossComparisonPeriods(new Date("2028-03-29T12:00:00.000Z")), { currentFrom: "2028-03-01", currentTo: "2028-03-29", previousFrom: "2028-02-01", previousTo: "2028-02-29" });
+  assert.deepEqual(profitLossComparisonPeriods(new Date("2026-05-30T12:00:00.000Z")), { currentFrom: "2026-05-01", currentTo: "2026-05-30", previousFrom: "2026-04-01", previousTo: "2026-04-30" });
+  assert.deepEqual(profitLossComparisonPeriods(new Date("2026-03-31T12:00:00.000Z")), { currentFrom: "2026-03-01", currentTo: "2026-03-31", previousFrom: "2026-02-01", previousTo: "2026-02-28" });
+  assert.deepEqual(profitLossComparisonPeriods(new Date("2026-01-31T12:00:00.000Z")), { currentFrom: "2026-01-01", currentTo: "2026-01-31", previousFrom: "2025-12-01", previousTo: "2025-12-31" });
 });
