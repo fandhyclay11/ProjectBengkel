@@ -80,3 +80,16 @@ test("R6.2 PDF renderer supports every report type", async () => {
   const profitLoss = await createPdf("profit-loss", header("profit-loss"), { summary: { serviceRevenue: "100", slsRevenue: "50", hpp: "20", grossProfit: "130", expense: "10", netProfit: "120", serviceCount: 1, slsCount: 1, completedPurchaseCount: 1, draftPurchaseCount: 0 } });
   assert.ok(profitLoss.subarray(0, 5).toString().startsWith("%PDF-"));
 });
+
+test("R6.2 stock report output uses labeled stock status without minus boolean", async () => {
+  const { createCsv, createPdf, reportHeader } = await import("@/server/report-output");
+  const header = reportHeader("stock", "2026-10-01", "2026-10-01", new Date("2026-10-01T00:00:00.000Z"));
+  const page = { rows: [{ code: "SP-LOW", name: "Part Low", sellingPrice: "1000", latestBuyPrice: "800", stockOnHand: "2", minimumStock: "5", averageCost: "700", isLow: true, isMinus: false }, { code: "SP-OK", name: "Part OK", sellingPrice: "1000", latestBuyPrice: null, stockOnHand: "8", minimumStock: "5", averageCost: "700", isLow: false, isMinus: false }], page: 1, pageSize: 25, total: 2 };
+  const csv = createCsv("stock", header, page);
+  assert.match(csv, /stockStatus/);
+  assert.match(csv, /Stok Menipis/);
+  assert.match(csv, /Normal/);
+  assert.doesNotMatch(csv, /"isMinus"|"true"|"false"|"MINUS"|"LOW"|"OK"/);
+  const pdf = await createPdf("stock", header, page);
+  assert.ok(pdf.subarray(0, 5).toString().startsWith("%PDF-"));
+});
