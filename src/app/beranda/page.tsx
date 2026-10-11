@@ -1,11 +1,17 @@
 import { redirect } from "next/navigation";
 import { currentSession } from "@/server/auth";
-import { LogoutButton } from "@/components/logout-button";
-import Image from "next/image";
+import { AppShell } from "@/components/app-shell";
+import { getDashboard } from "@/server/dashboard-query-service";
+import { BerandaOperationalSummary } from "@/components/beranda-operational-summary";
 
 export default async function HomeDashboardPlaceholder() {
   const session = await currentSession();
   if (!session) redirect("/");
   if (session.user.mustChangePassword) redirect("/ganti-password");
-  return <main className="mx-auto max-w-4xl p-4 sm:p-8"><div className="rounded-2xl border border-red-100 bg-white p-5 shadow-lg shadow-red-950/5 sm:p-7"><div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-4"><Image className="h-20 w-24 shrink-0 object-contain sm:h-24 sm:w-32" src="/brand/bimantara-motor-indonesia.jpg" alt="BIMANTARA MOTOR INDONESIA" width={128} height={96} /><div className="min-w-0"><h1 className="text-2xl font-bold tracking-tight text-black sm:text-3xl">BIMANTARA MOTOR INDONESIA</h1><p className="mt-2 text-slate-600">Login sebagai {session.user.role}.</p></div></div><LogoutButton /></div></div><div className="mt-6 flex flex-wrap gap-3"><a className="rounded bg-red-700 px-4 py-2 font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2" href="/spareparts">Daftar Sparepart</a><a className="rounded border border-slate-300 bg-white px-4 py-2 text-black transition hover:border-red-500 hover:text-red-700" href="/services">Service</a><a className="rounded border border-slate-300 bg-white px-4 py-2 text-black transition hover:border-red-500 hover:text-red-700" href="/sls">SLS</a><a className="rounded border border-slate-300 bg-white px-4 py-2 text-black transition hover:border-red-500 hover:text-red-700" href="/purchases">Purchase</a><a className="rounded border border-slate-300 bg-white px-4 py-2 text-black transition hover:border-red-500 hover:text-red-700" href="/stock-opname">Stock Opname</a>{session.user.role === "ADMIN" && <><a className="rounded border border-slate-300 bg-white px-4 py-2 text-black transition hover:border-red-500 hover:text-red-700" href="/dashboard">Dashboard</a><a className="rounded border border-slate-300 bg-white px-4 py-2 text-black transition hover:border-red-500 hover:text-red-700" href="/expenses">Expense</a><a className="rounded border border-slate-300 bg-white px-4 py-2 text-black transition hover:border-red-500 hover:text-red-700" href="/stock-card">Stok Movement</a><a className="rounded border border-slate-300 bg-white px-4 py-2 text-black transition hover:border-red-500 hover:text-red-700" href="/reports">Reports</a><a className="rounded border border-slate-300 bg-white px-4 py-2 text-black transition hover:border-red-500 hover:text-red-700" href="/admin/users">Manajemen User</a></>}</div></main>;
+  let dashboard;
+  let dashboardError = false;
+  if (session.user.role === "ADMIN") {
+    try { dashboard = await getDashboard("ADMIN", { preset: "month" }); } catch { dashboardError = true; }
+  }
+  return <AppShell role={session.user.role} username={session.user.username} title="Beranda"><BerandaOperationalSummary role={session.user.role} dashboard={dashboard} dashboardError={dashboardError} /></AppShell>;
 }
