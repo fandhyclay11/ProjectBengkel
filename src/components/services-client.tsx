@@ -238,12 +238,8 @@ export function ServicesClient({
     ]);
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <a href="/beranda" className="text-sm text-blue-700">
-        ← Beranda
-      </a>
-      <h1 className="mt-3 text-2xl font-semibold">Service</h1>
-      <p className="mt-2 text-sm text-slate-600">
+    <section className="mx-auto max-w-6xl">
+      <p className="mb-5 text-sm text-[#666666]">
         Preview tidak menyimpan data. Service menjadi Completed dan mengurangi
         stok setelah disimpan.
       </p>
@@ -659,6 +655,6 @@ export function ServicesClient({
           </p>
         )}
       </section>
-    </main>
+    </section>
   );
 }
