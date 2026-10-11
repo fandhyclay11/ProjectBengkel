@@ -93,3 +93,22 @@ test("R6.2 stock report output uses labeled stock status without minus boolean",
   const pdf = await createPdf("stock", header, page);
   assert.ok(pdf.subarray(0, 5).toString().startsWith("%PDF-"));
 });
+
+test("R6.2 movement and stock opname exports flatten nested values", async () => {
+  const { createCsv, createPdf, reportHeader } = await import("@/server/report-output");
+  const movementHeader = reportHeader("movements", "2026-10-01", "2026-10-01");
+  const movementPage = { rows: [{ id: "1", occurredAt: "2026-10-01T00:00:00.000Z", sparePartCode: "SP1", sparePartName: "Buras", movementType: "ADJUSTMENT_OUT", movementLabel: "Adjustment Keluar", quantity: "-2", unitCost: "500", sourceType: "STOCK_OPNAME", sourceId: "10", sourceRevision: 1, sourceOperation: "APPROVE" }], page: 1, pageSize: 25, total: 1 };
+  const movementCsv = createCsv("movements", movementHeader, movementPage);
+  assert.doesNotMatch(movementCsv, /\[object Object\]/);
+  assert.match(movementCsv, /SP1/);
+  assert.match(movementCsv, /Adjustment Keluar/);
+  assert.match(movementCsv, /STOCK_OPNAME/);
+  assert.ok((await createPdf("movements", movementHeader, movementPage)).subarray(0, 5).toString().startsWith("%PDF-"));
+  const opnameHeader = reportHeader("stock-opnames", "2026-10-01", "2026-10-01");
+  const opnamePage = { rows: [{ id: "10", opnameNumber: "OPN-10", transactionAt: "2026-10-01T00:00:00.000Z", status: "APPROVED", statusLabel: "Approved", items: [], appliedMovements: [{ sparePartCode: "SP1", sparePartName: "Buras", movementType: "ADJUSTMENT_OUT", movementLabel: "Adjustment Keluar", quantity: "-2", sourceType: "STOCK_OPNAME", sourceId: "10", sourceRevision: 1, sourceOperation: "APPROVE" }] }], page: 1, pageSize: 25, total: 1 };
+  const opnameCsv = createCsv("stock-opnames", opnameHeader, opnamePage);
+  assert.doesNotMatch(opnameCsv, /\[object Object\]/);
+  assert.match(opnameCsv, /Approved/);
+  assert.match(opnameCsv, /Adjustment Keluar/);
+  assert.ok((await createPdf("stock-opnames", opnameHeader, opnamePage)).subarray(0, 5).toString().startsWith("%PDF-"));
+});
