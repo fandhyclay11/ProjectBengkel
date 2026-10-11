@@ -25,7 +25,7 @@ function flatRows(report: ReportName, page: ReportResult) {
   const output: Row[] = [];
   for (const row of rowsFor(page)) {
     if (["services", "sls", "purchases", "expenses"].includes(report) && Array.isArray(row.items) && row.items.length) {
-      const { items, ...header } = row; output.push({ ...header, detail: (items as unknown[]).map(value).join(" | ") });
+      const { items, ...header } = row; delete header.id; output.push({ ...header, detail: (items as unknown[]).map(value).join(" | ") });
     } else output.push(row);
   }
   return output;

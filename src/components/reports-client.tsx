@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 type ReportName = "services" | "sls" | "purchases" | "expenses" | "stock" | "movements" | "stock-opnames" | "profit-loss";
 type Row = Record<string, unknown>;
@@ -30,7 +30,7 @@ function ServiceRow({ row, timezone }: { row: Row; timezone: string }) {
       <td className="px-3 py-3 text-right">{amount(row.discount)}</td>
       <td className="px-3 py-3 text-right font-semibold">{amount(row.totalAmount)}</td>
       <td className="px-3 py-3 text-right">{amount(row.totalHpp)}</td>
-      <td className="px-3 py-3 text-center"><button className="rounded border px-2 py-1 text-sm text-blue-700" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Tutup" : "Detail"}</button></td>
+       <td className="px-3 py-3 text-center print:hidden"><button className="rounded border px-2 py-1 text-sm text-blue-700" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Tutup" : "Detail"}</button></td>
     </tr>
     {open && <tr className="border-t bg-slate-50"><td colSpan={7} className="p-4">
       <div className="grid gap-5 lg:grid-cols-2">
@@ -41,9 +41,44 @@ function ServiceRow({ row, timezone }: { row: Row; timezone: string }) {
   </>;
 }
 
-function GenericTable({ rows }: { rows: Row[] }) {
-  const keys = [...new Set(rows.flatMap((row) => Object.keys(row).filter((key) => !["jobs", "items"].includes(key))))];
-  return <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left">{keys.map((key) => <th key={key} className="px-3 py-2 font-semibold">{label(key)}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index} className="border-t">{keys.map((key) => <td key={key} className="whitespace-nowrap px-3 py-2">{text(row[key])}</td>)}</tr>)}</tbody></table></div>;
+function ReportDetailRow({ columns, colSpan, children }: { columns: ReactNode; colSpan: number; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return <>
+    <tr className="border-t align-top">{columns}<td className="px-3 py-3 text-center print:hidden"><button className="rounded border px-2 py-1 text-sm text-blue-700" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Tutup" : "Detail"}</button></td></tr>
+    {open && <tr className="border-t bg-slate-50"><td colSpan={colSpan} className="p-4">{children}</td></tr>}
+  </>;
+}
+
+function SlsRow({ row, timezone }: { row: Row; timezone: string }) {
+  const items = Array.isArray(row.items) ? row.items as Row[] : [];
+  return <ReportDetailRow colSpan={7} columns={<><td className="px-3 py-3 font-medium">{text(row.slsNumber)}</td><td className="px-3 py-3">{dateTime(row.transactionAt, timezone)}</td><td className="px-3 py-3 text-right">{amount(row.subtotal)}</td><td className="px-3 py-3 text-right">{amount(row.discount)}</td><td className="px-3 py-3 text-right font-semibold">{amount(row.totalAmount)}</td><td className="px-3 py-3 text-right">{amount(row.totalHpp)}</td></>}>
+    <h4 className="mb-2 font-semibold">Spareparts ({items.length})</h4>{items.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="pb-2">Part</th><th className="pb-2 text-right">Qty</th><th className="pb-2 text-right">Selling price</th><th className="pb-2 text-right">Line amount</th><th className="pb-2 text-right">HPP</th></tr></thead><tbody>{items.map((item, index) => <tr key={index} className="border-b last:border-0"><td className="py-2">{text(item.partCodeSnapshot)}<div className="text-xs text-slate-500">{text(item.partNameSnapshot)}</div></td><td className="py-2 text-right">{text(item.quantity)}</td><td className="py-2 text-right">{amount(item.sellingPrice)}</td><td className="py-2 text-right">{amount(item.lineAmount)}</td><td className="py-2 text-right">{amount(item.lineHpp)}</td></tr>)}</tbody></table></div> : <p className="text-sm text-slate-500">Tidak ada sparepart.</p>}
+  </ReportDetailRow>;
+}
+
+function PurchaseRow({ row, timezone }: { row: Row; timezone: string }) {
+  const items = Array.isArray(row.items) ? row.items as Row[] : [];
+  return <ReportDetailRow colSpan={5} columns={<><td className="px-3 py-3 font-medium">{text(row.purchaseNumber)}</td><td className="px-3 py-3">{dateTime(row.transactionAt, timezone)}<div className="text-xs text-slate-500">{text(row.supplierName)}</div></td><td className="px-3 py-3">COMPLETED</td><td className="px-3 py-3 text-right font-semibold">{amount(row.totalAmount)}</td></>}>
+    <h4 className="mb-2 font-semibold">Spareparts ({items.length})</h4>{items.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="pb-2">Part</th><th className="pb-2 text-right">Qty</th><th className="pb-2 text-right">Harga beli</th><th className="pb-2 text-right">Line amount</th></tr></thead><tbody>{items.map((item, index) => <tr key={index} className="border-b last:border-0"><td className="py-2">{text(item.partCodeSnapshot)}<div className="text-xs text-slate-500">{text(item.partNameSnapshot)}</div></td><td className="py-2 text-right">{text(item.quantity)}</td><td className="py-2 text-right">{amount(item.unitBuyPrice)}</td><td className="py-2 text-right">{amount(item.lineAmount)}</td></tr>)}</tbody></table></div> : <p className="text-sm text-slate-500">Tidak ada sparepart.</p>}
+  </ReportDetailRow>;
+}
+
+function ExpenseRow({ row, timezone }: { row: Row; timezone: string }) {
+  const items = Array.isArray(row.items) ? row.items as Row[] : [];
+  return <ReportDetailRow colSpan={4} columns={<><td className="px-3 py-3 font-medium">{text(row.expenseNumber)}</td><td className="px-3 py-3">{dateTime(row.transactionAt, timezone)}</td><td className="px-3 py-3 text-right font-semibold">{amount(row.totalAmount)}</td></>}>
+    <h4 className="mb-2 font-semibold">Items ({items.length})</h4>{items.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="pb-2">Description</th><th className="pb-2 text-right">Qty</th><th className="pb-2 text-right">Unit price</th><th className="pb-2 text-right">Line amount</th></tr></thead><tbody>{items.map((item, index) => <tr key={index} className="border-b last:border-0"><td className="py-2">{text(item.description)}</td><td className="py-2 text-right">{text(item.quantity)}</td><td className="py-2 text-right">{amount(item.unitPrice)}</td><td className="py-2 text-right">{amount(item.lineAmount)}</td></tr>)}</tbody></table></div> : <p className="text-sm text-slate-500">Tidak ada item.</p>}
+  </ReportDetailRow>;
+}
+
+function GenericTable({ rows, timezone = "Asia/Jakarta" }: { rows: Row[]; timezone?: string }) {
+  const keys = [...new Set(rows.flatMap((row) => Object.keys(row).filter((key) => !["id", "jobs", "items"].includes(key))))];
+  const detailReport = rows.some((row) => row.slsNumber !== undefined || row.purchaseNumber !== undefined || row.expenseNumber !== undefined);
+  return <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left">{keys.map((key) => <th key={key} className="px-3 py-2 font-semibold">{label(key)}</th>)}{detailReport && <th className="px-3 py-2 text-center font-semibold print:hidden">Aksi</th>}</tr></thead><tbody>{rows.map((row, index) => {
+    if (row.slsNumber !== undefined) return <SlsRow key={String(row.id ?? index)} row={row} timezone={timezone} />;
+    if (row.purchaseNumber !== undefined) return <PurchaseRow key={String(row.id ?? index)} row={row} timezone={timezone} />;
+    if (row.expenseNumber !== undefined) return <ExpenseRow key={String(row.id ?? index)} row={row} timezone={timezone} />;
+    return <tr key={index} className="border-t">{keys.map((key) => <td key={key} className="whitespace-nowrap px-3 py-2">{text(row[key])}</td>)}</tr>;
+  })}</tbody></table></div>;
 }
 
 export function ReportsClient({ defaultFrom, defaultTo, initialReport, workshopName, timezone }: { defaultFrom: string; defaultTo: string; initialReport?: string; workshopName: string; timezone: string }) {
