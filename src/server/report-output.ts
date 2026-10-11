@@ -10,7 +10,7 @@ export const reportTitles: Record<ReportName, string> = {
   stock: "Stock / Sparepart Report", movements: "Stock Movement Report", "stock-opnames": "Stock Opname Result Report", "profit-loss": "Profit & Loss Report",
 };
 export function reportHeader(report: ReportName, from: string, to: string, generatedAt = new Date()) {
-  return { title: reportTitles[report], from, to, timezone: process.env.APP_WORKSHOP_TIMEZONE?.trim() || "Asia/Jakarta", generatedAt: generatedAt.toISOString(), workshopName: process.env.APP_WORKSHOP_NAME?.trim() || "Project Bengkel" } satisfies ReportHeader;
+  return { title: reportTitles[report], from, to, timezone: process.env.APP_WORKSHOP_TIMEZONE?.trim() || "Asia/Jakarta", generatedAt: generatedAt.toISOString(), workshopName: process.env.APP_WORKSHOP_NAME?.trim() || "BIMANTARA MOTOR INDONESIA" } satisfies ReportHeader;
 }
 
 type Row = Record<string, unknown>;

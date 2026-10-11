@@ -11,5 +11,5 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const today = workshopDateTimeInput(new Date()).slice(0, 10);
   const params = await searchParams;
   const value = (key: string) => typeof params[key] === "string" ? params[key] as string : undefined;
-  return <ReportsClient defaultFrom={value("from") ?? today.slice(0, 8) + "01"} defaultTo={value("to") ?? today} initialReport={value("report")} workshopName={process.env.APP_WORKSHOP_NAME?.trim() || "Project Bengkel"} timezone={workshopTimezone()} />;
+  return <ReportsClient defaultFrom={value("from") ?? today.slice(0, 8) + "01"} defaultTo={value("to") ?? today} initialReport={value("report")} workshopName={process.env.APP_WORKSHOP_NAME?.trim() || "BIMANTARA MOTOR INDONESIA"} timezone={workshopTimezone()} />;
 }

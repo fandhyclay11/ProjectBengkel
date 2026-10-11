@@ -8,5 +8,5 @@ export default async function DashboardPage() {
   if (!session) redirect("/");
   if (session.user.mustChangePassword) redirect("/ganti-password");
   if (session.user.role !== "ADMIN") redirect("/beranda");
-  return <DashboardClient workshopName={process.env.APP_WORKSHOP_NAME?.trim() || "Project Bengkel"} timezone={workshopTimezone()} />;
+  return <DashboardClient workshopName={process.env.APP_WORKSHOP_NAME?.trim() || "BIMANTARA MOTOR INDONESIA"} timezone={workshopTimezone()} />;
 }
