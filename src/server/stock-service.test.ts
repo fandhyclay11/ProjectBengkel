@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { prisma } from "@/server/db";
 import { hashPassword } from "@/server/password";
+import { workshopDateRange, workshopDateTimeInput } from "@/server/datetime";
 import { applyStockMovement, listMovementsForAdmin, StockServiceError } from "@/server/stock-service";
 
 test("stock service posts an immutable ledger and keeps its balance projection atomic", async (t) => {
@@ -67,11 +68,13 @@ test("stock service posts an immutable ledger and keeps its balance projection a
           "ledger quantity reconciles with current-stock projection");
         assert.equal(movements.length, 3, "insufficient stock creates no movement");
         assert.equal(current.stockVersion, 3n, "insufficient stock creates no version increment");
-        const cardRows = await listMovementsForAdmin(part.id, 20, tx);
+        const today = workshopDateTimeInput(new Date()).slice(0, 10);
+        const dateRange = workshopDateRange(today, today);
+        const cardRows = await listMovementsForAdmin(part.id, dateRange, tx);
         assert.equal(cardRows.length, 3, "Admin stock-card query returns movements for the selected part");
         assert.equal(cardRows[0]?.code, part.code);
         assert.ok(cardRows.some((row) => row.type === "PURCHASE_RECEIPT" && row.quantity === "1"));
-        assert.equal((await listMovementsForAdmin(part.id + 1n, 20, tx)).length, 0,
+        assert.equal((await listMovementsForAdmin(part.id + 1n, dateRange, tx)).length, 0,
           "stock-card part filter does not mix another sparepart's ledger");
         throw new Error(rollbackMessage);
       });

@@ -3,6 +3,7 @@ import type { Prisma, StockMovementType } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import { writeAudit } from "@/server/audit";
 import { executeIdempotent, IdempotencyError } from "@/server/idempotency";
+import type { WorkshopDateRange } from "@/server/datetime";
 
 type Actor = { id: bigint; username: string };
 const MAX_BIGINT = 9_223_372_036_854_775_807n;
@@ -315,11 +316,10 @@ export async function recordOpeningStock(input: {
   }
 }
 
-export async function listMovementsForAdmin(sparePartId?: bigint, limit = 100, transaction?: Prisma.TransactionClient) {
+export async function listMovementsForAdmin(sparePartId: bigint | undefined, dateRange: WorkshopDateRange, transaction?: Prisma.TransactionClient) {
   const repository = transaction ?? prisma;
   const movements = await repository.stockMovement.findMany({
-    where: sparePartId === undefined ? undefined : { sparePartId },
-    take: Math.min(Math.max(limit, 1), 200),
+    where: { occurredAt: { gte: dateRange.from, lt: dateRange.toExclusive }, ...(sparePartId === undefined ? {} : { sparePartId }) },
     orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
     include: { sparePart: { select: { code: true, name: true } } },
   });

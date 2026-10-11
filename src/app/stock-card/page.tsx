@@ -2,27 +2,34 @@ import { redirect } from "next/navigation";
 import { currentSession } from "@/server/auth";
 import { listMovementsForAdmin } from "@/server/stock-service";
 import { listSpareParts } from "@/server/sparepart-service";
+import { workshopDateRange, workshopDateTimeInput } from "@/server/datetime";
 
-export default async function StockCardPage({ searchParams }: { searchParams: Promise<{ sparePartId?: string }> }) {
+export default async function StockCardPage({ searchParams }: { searchParams: Promise<{ sparePartId?: string; from?: string; to?: string }> }) {
   const session = await currentSession();
   if (!session) redirect("/");
   if (session.user.mustChangePassword) redirect("/ganti-password");
   if (session.user.role !== "ADMIN") redirect("/beranda");
   const params = await searchParams;
+  const today = workshopDateTimeInput(new Date()).slice(0, 10);
+  const from = params.from ?? today;
+  const to = params.to ?? today;
+  const dateRange = workshopDateRange(from, to);
   const sparePartId = params.sparePartId && /^\d{1,19}$/.test(params.sparePartId) && BigInt(params.sparePartId) > 0n && BigInt(params.sparePartId) <= 9_223_372_036_854_775_807n
     ? BigInt(params.sparePartId)
     : undefined;
-  const [movements, spareparts] = await Promise.all([listMovementsForAdmin(sparePartId), listSpareParts("ADMIN")]);
+  const [movements, spareparts] = await Promise.all([listMovementsForAdmin(sparePartId, dateRange), listSpareParts("ADMIN")]);
   return <main className="mx-auto max-w-6xl p-6">
     <a href="/beranda" className="text-sm text-blue-700">← Beranda</a>
-    <h1 className="mt-3 text-2xl font-semibold">Kartu Stok</h1>
+    <h1 className="mt-3 text-2xl font-semibold">Stok Movement</h1>
     <p className="mt-2 text-sm text-slate-600">Riwayat pergerakan stok. Data ini hanya dapat dilihat Admin.</p>
-    <form className="my-4 flex gap-2" action="/stock-card">
+    <form className="my-4 flex flex-wrap items-end gap-2" action="/stock-card">
+       <label className="grid gap-1 text-sm">Dari<input className="rounded border px-3 py-2" type="date" name="from" defaultValue={from} required /></label>
+       <label className="grid gap-1 text-sm">Sampai<input className="rounded border px-3 py-2" type="date" name="to" defaultValue={to} required /></label>
       <select className="rounded border px-3 py-2" name="sparePartId" defaultValue={params.sparePartId ?? ""}>
         <option value="">Semua sparepart</option>
         {spareparts.map((part) => <option key={part.id} value={part.id}>{part.code} — {part.name}</option>)}
       </select>
-      <button className="rounded border px-3 py-2">Filter</button>
+      <button className="rounded border px-3 py-2">Tampilkan</button>
     </form>
     <div className="overflow-x-auto rounded border bg-white">
       <table className="w-full text-left text-sm">

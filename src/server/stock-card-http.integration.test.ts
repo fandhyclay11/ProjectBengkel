@@ -121,9 +121,14 @@ test("I2.5 movement endpoint allows Admin and denies USER over HTTP", async (t) 
     assert.equal(adminResponse.status, 200);
     const adminBody = await adminResponse.json() as { movements?: Array<Record<string, string | null>> };
     assert.ok(Array.isArray(adminBody.movements));
-    assert.equal(adminBody.movements.length, 1);
-    assert.deepEqual(adminBody.movements[0], {
-      id: adminBody.movements[0]?.id,
+
+    const allDatesResponse = await fetch(`${baseUrl}/api/admin/stock/movements?from=2000-01-01&to=2100-01-01&sparePartId=${partRow.rows[0]!.id}`, { headers: { cookie: adminCookies } });
+    assert.equal(allDatesResponse.status, 200);
+    const allDatesBody = await allDatesResponse.json() as { movements?: Array<Record<string, string | null>> };
+    assert.ok(Array.isArray(allDatesBody.movements));
+    assert.equal(allDatesBody.movements.length, 1);
+    assert.deepEqual(allDatesBody.movements[0], {
+      id: allDatesBody.movements[0]?.id,
       sparePartId: partRow.rows[0]!.id,
       code: partRow.rows[0]!.code,
       name: partRow.rows[0]!.name,
@@ -132,10 +137,20 @@ test("I2.5 movement endpoint allows Admin and denies USER over HTTP", async (t) 
       unitCost: "1500",
       sourceType: "INTEGRATION_TEST",
       sourceId,
-      occurredAt: adminBody.movements[0]?.occurredAt,
+      occurredAt: allDatesBody.movements[0]?.occurredAt,
       valuationDelta: "4500",
       purchaseValueDelta: null,
     });
+
+    const invalidDate = await fetch(`${baseUrl}/api/admin/stock/movements?from=2026-02-30&to=2026-02-30`, { headers: { cookie: adminCookies } });
+    assert.equal(invalidDate.status, 400);
+    const incompleteRange = await fetch(`${baseUrl}/api/admin/stock/movements?from=2026-10-01`, { headers: { cookie: adminCookies } });
+    assert.equal(incompleteRange.status, 400);
+    const reversedRange = await fetch(`${baseUrl}/api/admin/stock/movements?from=2026-10-02&to=2026-10-01`, { headers: { cookie: adminCookies } });
+    assert.equal(reversedRange.status, 400);
+    const combinedFilter = await fetch(`${baseUrl}/api/admin/stock/movements?from=2000-01-01&to=2100-01-01&sparePartId=${partRow.rows[0]!.id}`, { headers: { cookie: adminCookies } });
+    assert.equal(combinedFilter.status, 200);
+    assert.equal(((await combinedFilter.json()) as { movements: unknown[] }).movements.length, 1);
 
     const userCookies = await login(userUsername, password);
     const userResponse = await fetch(`${baseUrl}/api/admin/stock/movements?sparePartId=${partRow.rows[0]!.id}`, {

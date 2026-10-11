@@ -6,7 +6,7 @@ import { prisma } from "@/server/db";
 import { hashPassword } from "@/server/password";
 import { applyStockMovement } from "@/server/stock-service";
 import { parseWorkshopDateTime } from "@/server/datetime";
-import { approveStockOpname, createStockOpname, finalizeStockOpname, rejectStockOpname, recheckStockOpname } from "@/server/stock-opname-service";
+import { approveStockOpname, createStockOpname, finalizeStockOpname, listStockOpnames, rejectStockOpname, recheckStockOpname } from "@/server/stock-opname-service";
 
 test("S4.1 captures all parts, supports partial recheck, and finalizes without stock effects", async (t) => {
   if (!process.env.DATABASE_URL) { t.skip("DATABASE_URL is required"); return; }
@@ -118,4 +118,30 @@ test("S4.2 zero adjustment approves without movement and reject keeps stock unch
     });
   } catch (error) { assert.equal((error as Error).message, `ROLLBACK_${suffix}`); }
   await prisma.user.deleteMany({ where: { id: { in: [user.id, admin.id] } } });
+});
+
+test("S4.3 list filters by createdAt while transactionAt can move during recheck", async (t) => {
+  if (!process.env.DATABASE_URL) { t.skip("DATABASE_URL is required"); return; }
+  const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
+  const user = await prisma.user.create({ data: { username: `it_s43_${suffix}`, role: "USER", passwordHash: await hashPassword(`S43-${suffix}-Password!`) } });
+  const actor = { id: user.id, username: user.username };
+  try {
+    await prisma.$transaction(async (tx) => {
+      const created = await createStockOpname({ transactionAt: parseWorkshopDateTime("2026-10-01T10:00") }, actor, `s43-create-${suffix}`, "USER", tx);
+      const persisted = await tx.stockOpname.findUniqueOrThrow({ where: { id: BigInt(created.id) } });
+      const dayStart = new Date(persisted.createdAt); dayStart.setUTCMinutes(dayStart.getUTCMinutes() - 1);
+      const dayEnd = new Date(persisted.createdAt); dayEnd.setUTCMinutes(dayEnd.getUTCMinutes() + 1);
+      const oldStart = parseWorkshopDateTime("2000-10-01T00:00");
+      const oldEnd = parseWorkshopDateTime("2000-10-02T00:00");
+      const before = await listStockOpnames("USER", { createdFrom: dayStart, createdToExclusive: dayEnd }, tx);
+      assert.ok(before.some((item) => item.id === created.id));
+      assert.equal(before.find((item) => item.id === created.id)!.createdAt, persisted.createdAt.toISOString());
+      await recheckStockOpname(BigInt(created.id), { transactionAt: parseWorkshopDateTime("2026-10-02T10:00"), items: [] }, actor, `s43-recheck-${suffix}`, "USER", tx);
+      const after = await listStockOpnames("USER", { createdFrom: dayStart, createdToExclusive: dayEnd }, tx);
+      assert.ok(after.some((item) => item.id === created.id));
+      assert.equal((await listStockOpnames("USER", { createdFrom: oldStart, createdToExclusive: oldEnd }, tx)).some((item) => item.id === created.id), false);
+      throw new Error(`ROLLBACK_${suffix}`);
+    });
+  } catch (error) { assert.equal((error as Error).message, `ROLLBACK_${suffix}`); }
+  await prisma.user.deleteMany({ where: { id: user.id } });
 });

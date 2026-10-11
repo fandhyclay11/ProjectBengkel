@@ -169,8 +169,9 @@ export async function rejectStockOpname(id: bigint, reason: string | null, actor
   }
 }
 
-export async function listStockOpnames(role: "ADMIN" | "USER", filters: { status?: "REVISION" | "FINALIZED" | "APPROVED"; from?: Date; to?: Date; search?: string } = {}) {
-  const rows = await prisma.stockOpname.findMany({ where: { ...(filters.status ? { status: filters.status } : {}), ...(filters.search ? { opnameNumber: { contains: filters.search, mode: "insensitive" } } : {}), ...(filters.from || filters.to ? { transactionAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}) }, include, orderBy: [{ transactionAt: "desc" }, { id: "desc" }], take: 200 });
+export async function listStockOpnames(role: "ADMIN" | "USER", filters: { status?: "REVISION" | "FINALIZED" | "APPROVED"; createdFrom?: Date; createdToExclusive?: Date; search?: string } = {}, transaction?: Prisma.TransactionClient) {
+  const repository = transaction ?? prisma;
+  const rows = await repository.stockOpname.findMany({ where: { ...(filters.status ? { status: filters.status } : {}), ...(filters.search ? { opnameNumber: { contains: filters.search, mode: "insensitive" } } : {}), ...(filters.createdFrom || filters.createdToExclusive ? { createdAt: { ...(filters.createdFrom ? { gte: filters.createdFrom } : {}), ...(filters.createdToExclusive ? { lt: filters.createdToExclusive } : {}) } } : {}) }, include, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
   return rows.map((row) => mapOpname(row, role));
 }
 
