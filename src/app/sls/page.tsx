@@ -4,6 +4,7 @@ import { workshopDateTimeInput } from "@/server/datetime";
 import { listSls } from "@/server/sls-service";
 import { listSpareParts } from "@/server/sparepart-service";
 import { SlsClient } from "@/components/sls-client";
+import { AppShell } from "@/components/app-shell";
 
 export default async function SlsPage() {
   const session = await currentSession();
@@ -12,5 +13,5 @@ export default async function SlsPage() {
   const today = workshopDateTimeInput(new Date()).slice(0, 10);
   const [sls, sparepartsResult] = await Promise.all([listSls(session.user.role, today), listSpareParts(session.user.role)]);
   const spareparts = sparepartsResult.filter((part) => !('isActive' in part) || part.isActive);
-  return <SlsClient role={session.user.role} initialSls={sls} spareparts={spareparts} defaultDateTime={workshopDateTimeInput(new Date())} defaultSlsDate={today} />;
+  return <AppShell role={session.user.role} username={session.user.username} title="Sales"><SlsClient role={session.user.role} initialSls={sls} spareparts={spareparts} defaultDateTime={workshopDateTimeInput(new Date())} defaultSlsDate={today} /></AppShell>;
 }

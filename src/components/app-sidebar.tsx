@@ -8,14 +8,14 @@ type MenuItem = { href: string; label: string };
 type MenuGroup = { label: string; items: MenuItem[] };
 
 const adminGroups: MenuGroup[] = [
-  { label: "Operasional", items: [{ href: "/dashboard", label: "Dashboard" }, { href: "/services", label: "Service" }, { href: "/sls", label: "SLS" }] },
+  { label: "Operasional", items: [{ href: "/dashboard", label: "Dashboard" }, { href: "/services", label: "Service" }, { href: "/sls", label: "Sales" }] },
   { label: "Persediaan", items: [{ href: "/spareparts", label: "Daftar Sparepart" }, { href: "/purchases", label: "Purchase" }, { href: "/stock-card", label: "Stok Movement" }, { href: "/stock-opname", label: "Stock Opname" }] },
   { label: "Keuangan", items: [{ href: "/expenses", label: "Expense" }, { href: "/reports", label: "Reports" }] },
   { label: "Pengaturan", items: [{ href: "/admin/users", label: "Manajemen User" }] },
 ];
 
 const userGroups: MenuGroup[] = [
-  { label: "Operasional", items: [{ href: "/services", label: "Service" }, { href: "/sls", label: "SLS" }, { href: "/purchases", label: "Purchase" }] },
+  { label: "Operasional", items: [{ href: "/services", label: "Service" }, { href: "/sls", label: "Sales" }, { href: "/purchases", label: "Purchase" }] },
   { label: "Persediaan", items: [{ href: "/spareparts", label: "Daftar Sparepart" }, { href: "/stock-opname", label: "Stock Opname" }] },
 ];
 

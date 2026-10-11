@@ -145,7 +145,7 @@ export function SlsClient({
     setSaving(true);
     try {
       const result = await send("/api/sls", payload(), saveKey.current);
-      setMessage(`SLS ${result.sls.slsNumber} berhasil disimpan.`);
+      setMessage(`Sales ${result.sls.slsNumber} berhasil disimpan.`);
       saveKey.current = null;
       setPreview(null);
       setDiscount("0");
@@ -192,7 +192,7 @@ export function SlsClient({
         crypto.randomUUID(),
         "PATCH",
       );
-      setMessage(`SLS ${result.sls.slsNumber} berhasil diedit.`);
+      setMessage(`Sales ${result.sls.slsNumber} berhasil diedit.`);
       setEditing(null);
       await refresh();
     } catch (error) {
@@ -217,7 +217,7 @@ export function SlsClient({
         { reason },
         crypto.randomUUID(),
       );
-      setMessage(`SLS ${value.slsNumber} dibatalkan.`);
+      setMessage(`Sales ${value.slsNumber} dibatalkan.`);
       await refresh();
     } catch (error) {
       setMessage((error as Error).message);
@@ -238,13 +238,9 @@ export function SlsClient({
       },
     ]);
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <a href="/beranda" className="text-sm text-blue-700">
-        ← Beranda
-      </a>
-      <h1 className="mt-3 text-2xl font-semibold">SLS</h1>
+    <div className="mx-auto max-w-6xl">
       <p className="mt-2 text-sm text-slate-600">
-        Preview tidak menyimpan data. SLS menjadi Completed dan mengurangi stok
+        Preview tidak menyimpan data. Sales menjadi Completed dan mengurangi stok
         setelah disimpan.
       </p>
       {message && (
@@ -254,7 +250,7 @@ export function SlsClient({
       )}
       <section className="my-5 rounded border bg-white p-4">
         <h2 className="font-semibold">
-          {editing ? `Edit ${editing.slsNumber}` : "Buat SLS"}
+          {editing ? `Edit Sales ${editing.slsNumber}` : "Buat Sales"}
         </h2>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <label className="grid gap-1 text-sm">
@@ -277,7 +273,7 @@ export function SlsClient({
           </label>
         </div>
         <input
-          aria-label="Cari sparepart SLS"
+          aria-label="Cari sparepart Sales"
           className="mt-4 w-full rounded border px-3 py-2"
           placeholder="Cari berdasarkan kode atau nama"
           value={partSearch}
@@ -407,7 +403,7 @@ export function SlsClient({
                   className="rounded bg-blue-700 px-4 py-2 text-white"
                   onClick={() => void save()}
                 >
-                  Simpan SLS
+                  Simpan Sales
                 </button>
               )}
             </>
@@ -434,7 +430,7 @@ export function SlsClient({
                   )}
                 </p>
                 <p>
-                  Margin SLS:{" "}
+                  Margin Sales:{" "}
                   {margin(
                     String(preview.totalAmount),
                     String(preview.totalHpp),
@@ -447,7 +443,7 @@ export function SlsClient({
       </section>
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-xl font-semibold">Riwayat SLS</h2>
+          <h2 className="text-xl font-semibold">Riwayat Sales</h2>
           <div className="flex items-end gap-2">
             <label className="grid gap-1 text-sm">
               Tanggal riwayat
@@ -510,7 +506,7 @@ export function SlsClient({
                         profit(value.totalAmount, value.totalHpp).toString(),
                       )}
                     </dd>
-                    <dt>Margin SLS</dt>
+                    <dt>Margin Sales</dt>
                     <dd>{margin(value.totalAmount, value.totalHpp)}</dd>
                   </>
                 )}
@@ -551,10 +547,10 @@ export function SlsClient({
         ))}
         {!sls.length && (
           <p className="rounded border bg-white p-4 text-slate-600">
-            Belum ada SLS.
+            Belum ada Sales.
           </p>
         )}
       </section>
-    </main>
+    </div>
   );
 }
