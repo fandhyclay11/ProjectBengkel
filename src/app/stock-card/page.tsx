@@ -3,6 +3,7 @@ import { currentSession } from "@/server/auth";
 import { listMovementsForAdmin } from "@/server/stock-service";
 import { listSpareParts } from "@/server/sparepart-service";
 import { workshopDateRange, workshopDateTimeInput } from "@/server/datetime";
+import { AppShell } from "@/components/app-shell";
 
 export default async function StockCardPage({ searchParams }: { searchParams: Promise<{ sparePartId?: string; from?: string; to?: string }> }) {
   const session = await currentSession();
@@ -18,9 +19,7 @@ export default async function StockCardPage({ searchParams }: { searchParams: Pr
     ? BigInt(params.sparePartId)
     : undefined;
   const [movements, spareparts] = await Promise.all([listMovementsForAdmin(sparePartId, dateRange), listSpareParts("ADMIN")]);
-  return <main className="mx-auto max-w-6xl p-6">
-    <a href="/beranda" className="text-sm text-blue-700">← Beranda</a>
-    <h1 className="mt-3 text-2xl font-semibold">Stok Movement</h1>
+  return <AppShell role={session.user.role} username={session.user.username} title="Stock Movement"><div className="mx-auto max-w-6xl">
     <p className="mt-2 text-sm text-slate-600">Riwayat pergerakan stok. Data ini hanya dapat dilihat Admin.</p>
     <form className="my-4 flex flex-wrap items-end gap-2" action="/stock-card">
        <label className="grid gap-1 text-sm">Dari<input className="rounded border px-3 py-2" type="date" name="from" defaultValue={from} required /></label>
@@ -41,5 +40,5 @@ export default async function StockCardPage({ searchParams }: { searchParams: Pr
         </tr>)}{movements.length === 0 && <tr><td className="p-4 text-slate-500" colSpan={5}>Belum ada pergerakan stok.</td></tr>}</tbody>
       </table>
     </div>
-  </main>;
+  </div></AppShell>;
 }

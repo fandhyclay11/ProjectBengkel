@@ -176,8 +176,7 @@ export function SparePartsClient({ role, initialParts, initialFilter }: { role: 
   };
 
   const visibleParts = parts.filter((part) => initialFilter === "low" ? isAdminPart(part) && BigInt(part.currentStock) <= BigInt(part.minimumStock) : initialFilter === "minus" ? isAdminPart(part) && BigInt(part.currentStock) < 0n : true);
-  return <main className="mx-auto max-w-6xl p-6">
-    <h1 className="text-2xl font-semibold">Sparepart</h1>
+  return <div className="mx-auto max-w-6xl">
     <p className="mt-2 text-sm text-slate-600">Stok terlihat sesuai hak akses. Harga master dan data biaya hanya ditampilkan kepada Admin.</p>
     {message && <p role="status" className="my-3 rounded bg-slate-100 p-3">{message}</p>}
     {admin && <section className="my-5 rounded border bg-white p-4">
@@ -200,5 +199,5 @@ export function SparePartsClient({ role, initialParts, initialFilter }: { role: 
       </table>
       {!visibleParts.length && <p className="p-4 text-slate-600">Belum ada sparepart pada filter ini.</p>}
     </div>}
-  </main>;
+  </div>;
 }

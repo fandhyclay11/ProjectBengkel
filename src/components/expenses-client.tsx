@@ -193,11 +193,7 @@ export function ExpensesClient({
   };
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <a href="/beranda" className="text-sm text-blue-700">
-        ← Beranda
-      </a>
-      <h1 className="mt-3 text-2xl font-semibold">Expense</h1>
+    <div className="mx-auto max-w-6xl">
       <p className="mt-2 text-sm text-slate-600">
         Expense hanya dapat dikelola Admin dan tidak memengaruhi stok.
       </p>
@@ -445,6 +441,6 @@ export function ExpensesClient({
           </p>
         )}
       </section>
-    </main>
+    </div>
   );
 }

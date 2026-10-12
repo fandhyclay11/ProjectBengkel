@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { currentSession } from "@/server/auth";
 import { workshopDateTimeInput, workshopTimezone } from "@/server/datetime";
 import { ReportsClient } from "@/components/reports-client";
+import { AppShell } from "@/components/app-shell";
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await currentSession();
@@ -11,5 +12,5 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const today = workshopDateTimeInput(new Date()).slice(0, 10);
   const params = await searchParams;
   const value = (key: string) => typeof params[key] === "string" ? params[key] as string : undefined;
-  return <ReportsClient defaultFrom={value("from") ?? today.slice(0, 8) + "01"} defaultTo={value("to") ?? today} initialReport={value("report")} workshopName={process.env.APP_WORKSHOP_NAME?.trim() || "BIMANTARA MOTOR INDONESIA"} timezone={workshopTimezone()} />;
+  return <AppShell role={session.user.role} username={session.user.username} title="Reports"><ReportsClient defaultFrom={value("from") ?? today.slice(0, 8) + "01"} defaultTo={value("to") ?? today} initialReport={value("report")} workshopName={process.env.APP_WORKSHOP_NAME?.trim() || "BIMANTARA MOTOR INDONESIA"} timezone={workshopTimezone()} /></AppShell>;
 }

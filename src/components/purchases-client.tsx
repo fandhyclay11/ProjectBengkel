@@ -266,8 +266,7 @@ export function PurchasesClient({
   };
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <h1 className="text-2xl font-semibold">Purchase</h1>
+    <div className="mx-auto max-w-6xl">
       <p className="mt-2 text-sm text-slate-600">
         Draft tidak memengaruhi stok. Stok dan Average Cost berubah setelah
         Admin mengonfirmasi Purchase.
@@ -570,6 +569,6 @@ export function PurchasesClient({
           </p>
         )}
       </section>
-    </main>
+    </div>
   );
 }

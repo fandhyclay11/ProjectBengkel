@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { currentSession } from "@/server/auth";
 import { SparePartsClient } from "@/components/spareparts-client";
 import { listSpareParts } from "@/server/sparepart-service";
+import { AppShell } from "@/components/app-shell";
 
 export default async function SparePartsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await currentSession();
@@ -10,5 +11,5 @@ export default async function SparePartsPage({ searchParams }: { searchParams: P
   const spareparts = await listSpareParts(session.user.role);
   const params = await searchParams;
   const filter = typeof params.filter === "string" ? params.filter : undefined;
-  return <SparePartsClient role={session.user.role} initialParts={spareparts} initialFilter={filter} />;
+  return <AppShell role={session.user.role} username={session.user.username} title="Daftar Sparepart"><SparePartsClient role={session.user.role} initialParts={spareparts} initialFilter={filter} /></AppShell>;
 }
