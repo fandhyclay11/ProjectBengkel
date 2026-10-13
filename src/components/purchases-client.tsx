@@ -452,7 +452,7 @@ export function PurchasesClient({
               disabled={
                 saving || (editingMode !== "COMPLETED" && !items.length)
               }
-              className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50"
+              className="rounded bg-[var(--color-brand)] px-4 py-2 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)] disabled:opacity-50"
               onClick={() => void saveDraft()}
             >
               {saving
@@ -479,7 +479,7 @@ export function PurchasesClient({
               Tanggal riwayat
               <input className="rounded border px-3 py-2" type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
             </label>
-            <button className="rounded bg-blue-700 px-3 py-2 text-white disabled:opacity-50" disabled={saving} onClick={() => void refresh()}>Tampilkan</button>
+            <button className="rounded bg-[var(--color-brand)] px-3 py-2 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)] disabled:opacity-50" disabled={saving} onClick={() => void refresh()}>Tampilkan</button>
           </div>
         </div>
         {purchases.map((purchase) => (

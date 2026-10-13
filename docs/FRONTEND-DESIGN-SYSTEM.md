@@ -48,23 +48,30 @@ The current asset is JPG, so transparency must not be assumed. A dedicated favic
 
 ## 2. Design Tokens
 
-The following tokens are the approved starting palette. They should be represented with existing Tailwind utility classes or CSS variables if shared values are needed. No UI dependency is required.
+These are the shared palette tokens used by the application shell. They are defined as CSS variables in `src/app/globals.css`; legacy page components may still contain local utility colors and are tracked for later normalization.
 
 | Token | Value | Usage |
 | --- | --- | --- |
-| `brand-primary` | `#D71920` | Primary actions, active navigation, key accents |
-| `brand-dark` | `#A80F16` | Hover/pressed primary actions, dark red emphasis |
-| `ink` | `#171717` | Headings, brand text, high-contrast content |
-| `surface` | `#FFFFFF` | Cards, panels, forms, tables |
-| `page-background` | `#F5F5F5` | Main application background |
-| `border` | `#D9D9D9` | Card, table, form, and divider borders |
-| `text-secondary` | `#666666` | Supporting text, descriptions, metadata |
+| `brand-primary` | `#B5121B` | Primary actions and active navigation marker |
+| `brand-hover` | `#8F1018` | Pressed and hover brand actions |
+| `sidebar` | `#173F3A` | Persistent desktop sidebar and mobile drawer |
+| `sidebar-hover` | `#25564F` | Sidebar link hover surface |
+| `sage` | `#A9B8A5` | Sidebar group headings and secondary accent |
+| `page-background` | `#F4F1E8` | Main application background |
+| `surface` | `#FFFDF8` | Cards and quiet surfaces, including the logo area |
+| `border` | `#D8D3C5` | Main area borders and dividers |
+| `ink` | `#202A28` | Main text and headings |
+| `text-secondary` | `#56645F` | Supporting text and metadata |
+| `active-surface` | `#DDE9E2` | Active sidebar link, with a red left marker and bold text |
+| `success` | `#236B4A` | Success status |
+| `warning` | `#805B12` | Warning status |
+| `error` | `#A12622` | Error status |
+| `info` | `#245A78` | Informational status |
 
 Rules:
 
 - Use red for actions and state emphasis, not as a large page background.
-- Use black for strong identity and headings.
-- Use white surfaces over the neutral page background.
+- Use the deep teal sidebar with cream text; use the warm cream page background with quiet light surfaces.
 - Use borders to separate operational regions without excessive shadows.
 - Keep status colors distinct from the brand red when status semantics require it. For example, success, warning, and error states must remain distinguishable from a generic primary action.
 - Existing business meaning must not be inferred from color alone.
@@ -73,13 +80,9 @@ The exact final contrast treatment for every state is a **Recommendation** to va
 
 ## 3. Typography
 
-The verified global font is currently defined in `src/app/globals.css` as:
+The app self-hosts variable WOFF2 files through `next/font/local` from `src/app/fonts/`. The files come from `@fontsource-variable/inter` and `@fontsource-variable/plus-jakarta-sans`, version `5.3.0`; each corresponding SIL Open Font License is included alongside the font. Browser runtime requests do not depend on an external font host.
 
-```css
-Arial, Helvetica, sans-serif
-```
-
-No new font dependency is planned.
+Use Inter for body text, navigation, forms, tables, and KPI values. Use Plus Jakarta Sans for headings. Arial, Helvetica, and generic sans-serif remain the fallback stack. The font files cover Latin; unprovided glyphs fall back to the system stack.
 
 ### Hierarchy
 
@@ -99,7 +102,7 @@ Do not change financial formatting, quantity formatting, date formatting, or rep
 
 ### Root layout
 
-`src/app/layout.tsx` is the only current App Router layout. It provides metadata, imports `globals.css`, and renders the document body. There is no authenticated nested layout yet.
+`src/app/layout.tsx` is the only current App Router layout. It provides metadata, loads the two self-hosted fonts, imports `globals.css`, and renders the document body. The shared `AppShell`, `AppHeader`, and `AppSidebar` components are in `src/components/` and are adopted explicitly by authenticated pages. Login and password-change remain standalone without operational navigation.
 
 ### Login
 
@@ -312,8 +315,9 @@ Page-specific forms and tables remain owned by their current client components. 
 
 ### Desktop
 
-- Persistent sidebar on the left.
-- Main content fills remaining width.
+- Persistent sidebar on the left, fixed to viewport height.
+- Sidebar navigation scrolls internally when the viewport is short.
+- Main content fills remaining width and scrolls independently.
 - Header spans the main content area.
 - Tables retain useful columns and use local horizontal scrolling when necessary.
 

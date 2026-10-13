@@ -318,7 +318,7 @@ export function ExpensesClient({
           {preview && (
             <button
               disabled={busy}
-              className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50"
+              className="rounded bg-[var(--color-brand)] px-4 py-2 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)] disabled:opacity-50"
               onClick={() => void save()}
             >
               {busy
@@ -353,7 +353,7 @@ export function ExpensesClient({
           Tanggal riwayat
           <input className="rounded border px-3 py-2" type="date" value={expenseDate} onChange={(event) => setExpenseDate(event.target.value)} />
         </label>
-        <button className="rounded bg-blue-700 px-3 py-2 text-white disabled:opacity-50" disabled={busy} onClick={() => void refresh()}>Tampilkan</button>
+        <button className="rounded bg-[var(--color-brand)] px-3 py-2 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)] disabled:opacity-50" disabled={busy} onClick={() => void refresh()}>Tampilkan</button>
         <button
           className={`rounded border px-3 py-2 ${!showCanceled ? "bg-slate-100" : ""}`}
           onClick={() => setShowCanceled(false)}

@@ -375,7 +375,7 @@ export function SlsClient({
             <>
               <button
                 disabled={saving}
-                className="rounded bg-blue-700 px-4 py-2 text-white"
+                className="rounded bg-[var(--color-brand)] px-4 py-2 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)]"
                 onClick={() => void edit()}
               >
                 Simpan Edit
@@ -400,7 +400,7 @@ export function SlsClient({
               {preview && (
                 <button
                   disabled={saving}
-                  className="rounded bg-blue-700 px-4 py-2 text-white"
+                  className="rounded bg-[var(--color-brand)] px-4 py-2 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)]"
                   onClick={() => void save()}
                 >
                   Simpan Sales
@@ -455,7 +455,7 @@ export function SlsClient({
               />
             </label>
             <button
-              className="rounded bg-blue-700 px-3 py-2 text-white disabled:opacity-50"
+              className="rounded bg-[var(--color-brand)] px-3 py-2 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)] disabled:opacity-50"
               disabled={saving}
               onClick={() => void refresh()}
             >

@@ -109,7 +109,7 @@ function AdminPartRow({ part, refresh, announce }: { part: AdminPart; refresh: (
     <td className="px-3 py-3">{part.minimumStock}</td>
     <td className="px-3 py-3"><div className="flex flex-wrap gap-2">
       {editing ? <>
-        <button disabled={saving} className="rounded bg-blue-700 px-3 py-1 text-white disabled:opacity-50" onClick={() => void save()}>Simpan</button>
+        <button disabled={saving} className="rounded bg-[var(--color-brand)] px-3 py-1 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)] disabled:opacity-50" onClick={() => void save()}>Simpan</button>
         <button className="rounded border px-3 py-1" onClick={() => { setEditing(false); setName(part.name); setSellingPrice(part.sellingPrice); setMinimumStock(part.minimumStock); }}>Batal</button>
       </> : <>
         <button className="rounded border px-3 py-1" onClick={() => setEditing(true)}>Edit</button>
@@ -121,7 +121,7 @@ function AdminPartRow({ part, refresh, announce }: { part: AdminPart; refresh: (
           <div className="flex flex-wrap gap-2">
             <input aria-label={`Jumlah stok ${part.code}`} className="w-36 rounded border px-2 py-1" inputMode="numeric" placeholder="Jumlah pcs" value={openingQuantity} onChange={(e) => setOpeningQuantity(e.target.value)} />
             <input aria-label={`Biaya per barang ${part.code}`} className="w-48 rounded border px-2 py-1" inputMode="numeric" placeholder="Modal per barang (Rp)" value={openingUnitCost} onChange={(e) => setOpeningUnitCost(e.target.value)} />
-            <button disabled={pendingAction} className="rounded bg-blue-700 px-3 py-1 text-white disabled:opacity-50" onClick={() => void recordOpening()}>Simpan stok</button>
+            <button disabled={pendingAction} className="rounded bg-[var(--color-brand)] px-3 py-1 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)] disabled:opacity-50" onClick={() => void recordOpening()}>Simpan stok</button>
           </div>
         </div>}
       </>}
@@ -185,7 +185,7 @@ export function SparePartsClient({ role, initialParts, initialFilter }: { role: 
         <label className="grid gap-1 text-sm">Nama<input className="rounded border px-3 py-2" value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label className="grid gap-1 text-sm">Harga jual master (Rupiah)<input className="rounded border px-3 py-2" inputMode="numeric" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} /></label>
         <label className="grid gap-1 text-sm">Stok minimum (pcs)<input className="rounded border px-3 py-2" inputMode="numeric" value={minimumStock} onChange={(e) => setMinimumStock(e.target.value)} /></label>
-        <button disabled={creating} className="self-end rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={() => void create()}>Tambah</button>
+        <button disabled={creating} className="self-end rounded bg-[var(--color-brand)] px-4 py-2 text-white hover:bg-[var(--color-brand-hover)] active:bg-[var(--color-brand-hover)] disabled:opacity-50" onClick={() => void create()}>Tambah</button>
       </div>
     </section>}
     {loading ? <p className="p-4">Memuat daftar…</p> : <div className="overflow-x-auto rounded border bg-white">
