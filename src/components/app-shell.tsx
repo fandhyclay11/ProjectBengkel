@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
 
-export function AppShell({ role, username, title, children }: { role: "ADMIN" | "USER"; username: string; title: string; children: ReactNode }) {
+export function AppShell({ role, username, title, centerTitle = true, children }: { role: "ADMIN" | "USER"; username: string; title: string; centerTitle?: boolean; children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -51,6 +51,6 @@ export function AppShell({ role, username, title, children }: { role: "ADMIN" | 
   }, [isMobile, menuOpen]);
   return <div className="min-h-screen bg-[var(--color-page)] text-[var(--color-ink)] lg:flex lg:h-screen lg:min-h-0 lg:overflow-hidden">
     <AppSidebar ref={sidebarRef} role={role} open={menuOpen} mobile={isMobile} onClose={() => setMenuOpen(false)} />
-    <div id="app-content" className="min-w-0 flex-1 lg:h-screen lg:min-h-0 lg:overflow-y-auto"><AppHeader menuButtonRef={menuButtonRef} title={title} username={username} role={role} menuOpen={menuOpen} onMenuToggle={() => setMenuOpen((open) => !open)} /><main className="min-w-0 p-4 sm:p-6 print:p-0">{children}</main></div>
+    <div id="app-content" className="min-w-0 flex-1 lg:h-screen lg:min-h-0 lg:overflow-y-auto"><AppHeader menuButtonRef={menuButtonRef} title={title} centerTitle={centerTitle} username={username} role={role} menuOpen={menuOpen} onMenuToggle={() => setMenuOpen((open) => !open)} /><main className="min-w-0 p-4 sm:p-6 print:p-0">{children}</main></div>
   </div>;
 }
